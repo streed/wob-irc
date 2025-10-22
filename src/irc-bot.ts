@@ -38,7 +38,8 @@ export class IRCBot {
   private getDefaultSystemPrompt(): string {
     return `You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. 
 You have access to various tools that you can use to help users. Use these tools naturally when they would be helpful to answer questions or perform tasks.
-Keep your responses brief and appropriate for IRC chat.`;
+Keep your responses brief and appropriate for IRC chat.
+IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, underscores, backticks, or other markdown syntax.`;
   }
 
   async start(): Promise<void> {
@@ -127,8 +128,11 @@ Keep your responses brief and appropriate for IRC chat.`;
       const response = await this.ollamaClient.processMessages(channel, messages);
       
       if (response && response.trim()) {
+        // Remove markdown formatting for IRC
+        const cleanedResponse = this.removeMarkdown(response);
+        
         // Split long messages if needed (IRC typically has ~512 char limit)
-        const lines = this.splitMessage(response, 400);
+        const lines = this.splitMessage(cleanedResponse, 400);
         
         for (const line of lines) {
           this.client.say(channel, line);
@@ -138,6 +142,46 @@ Keep your responses brief and appropriate for IRC chat.`;
       console.error('Error processing messages:', error);
       this.client.say(channel, 'Sorry, I encountered an error processing that request.');
     }
+  }
+
+  private removeMarkdown(text: string): string {
+    // Remove markdown formatting for IRC output
+    let cleaned = text;
+    
+    // Remove code blocks first (before inline code) (```code```)
+    cleaned = cleaned.replace(/```[^\n]*\n?([\s\S]*?)```/g, '$1');
+    
+    // Remove bold (**text** or __text__)
+    cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1');
+    cleaned = cleaned.replace(/__(.+?)__/g, '$1');
+    
+    // Remove italic (*text* or _text_)
+    cleaned = cleaned.replace(/\*(.+?)\*/g, '$1');
+    cleaned = cleaned.replace(/_(.+?)_/g, '$1');
+    
+    // Remove inline code (`code`) - only match content without newlines
+    cleaned = cleaned.replace(/`([^`\n]+)`/g, '$1');
+    
+    // Remove strikethrough (~~text~~)
+    cleaned = cleaned.replace(/~~(.+?)~~/g, '$1');
+    
+    // Remove links [text](url) -> text (url)
+    cleaned = cleaned.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
+    
+    // Remove headers (# text)
+    cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
+    
+    // Remove blockquotes (> text)
+    cleaned = cleaned.replace(/^>\s+/gm, '');
+    
+    // Remove horizontal rules
+    cleaned = cleaned.replace(/^[-*_]{3,}$/gm, '');
+    
+    // Remove list markers but keep content
+    cleaned = cleaned.replace(/^[\s]*[-*+]\s+/gm, '');
+    cleaned = cleaned.replace(/^[\s]*\d+\.\s+/gm, '');
+    
+    return cleaned;
   }
 
   private splitMessage(message: string, maxLength: number): string[] {
