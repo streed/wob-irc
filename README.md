@@ -122,15 +122,17 @@ See the `examples/` directory for sample plugins:
 - `weather-plugin.js` - Get weather information (mock data)
 - `time-plugin.js` - Get current time in different timezones
 - `ollama-search-plugin.js` - Search the web using Ollama's cloud API (requires API key)
+- `ollama-fetch-plugin.js` - Fetch content from specific URLs using Ollama's cloud API (requires API key)
 
 To use example plugins, copy them to the `plugins/` directory:
 ```bash
 cp examples/weather-plugin.js plugins/
 cp examples/time-plugin.js plugins/
 cp examples/ollama-search-plugin.js plugins/  # Requires OLLAMA_API_KEY env variable
+cp examples/ollama-fetch-plugin.js plugins/   # Requires OLLAMA_API_KEY env variable
 ```
 
-**Note**: The `ollama-search-plugin.js` requires an Ollama cloud API key. Get one at https://ollama.com/settings/keys and set it as the `OLLAMA_API_KEY` environment variable.
+**Note**: The `ollama-search-plugin.js` and `ollama-fetch-plugin.js` require an Ollama cloud API key. Get one at https://ollama.com/settings/keys and set it as the `OLLAMA_API_KEY` environment variable.
 
 ## How It Works
 
@@ -158,6 +160,9 @@ Example interactions:
 
 <user> bot, search for latest news on artificial intelligence
 <ollama-bot> Search result for "latest news on artificial intelligence": [summarized top result from web search]
+
+<user> bot, fetch content from https://example.com/article
+<ollama-bot> "Article Title" from https://example.com/article: [extracted content from the page]
 ```
 
 ## Message Debouncing
