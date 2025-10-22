@@ -10,6 +10,7 @@ export class IRCBot {
   private pluginLoader: PluginLoader;
   private messageQueue: MessageQueue;
   private ollamaClient: OllamaClient;
+  private nickUpdateTimers: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -94,6 +95,12 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
     this.client.on('join', (event: any) => {
       if (event.nick === this.client.user.nick) {
         console.log(`[IRC] Successfully joined channel: ${event.channel}`);
+        
+        // Start periodic nick list updates for this channel
+        this.startNickListUpdates(event.channel);
+        
+        // Initial nick list update
+        this.updateChannelNicks(event.channel);
       }
     });
 
@@ -103,13 +110,18 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
         return;
       }
 
+      // Add all channel messages to the message buffer for context
+      const target = event.target === this.client.user.nick ? event.nick : event.target;
+      const bufferSize = this.config.messageBufferSize || 50;
+      this.ollamaClient.addToMessageBuffer(target, event.nick, event.message, bufferSize);
+
       // Only respond to channel messages or direct messages
       if (event.target === this.client.user.nick || this.shouldRespond(event.message)) {
         console.log(`[${event.target}] <${event.nick}> ${event.message}`);
         
         // Add message to queue
         this.messageQueue.addMessage(
-          event.target,
+          target,
           event.nick,
           event.message
         );
@@ -148,6 +160,15 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
       }
     });
 
+    // Handle NAMES list updates
+    this.client.on('userlist', (event: any) => {
+      if (event.channel && event.users) {
+        const nicks = event.users.map((user: any) => user.nick);
+        this.ollamaClient.updateChannelNicks(event.channel, nicks);
+        console.log(`[IRC] Updated nick list for ${event.channel}: ${nicks.length} users`);
+      }
+    });
+
     // Handle graceful shutdown
     process.on('SIGINT', async () => {
       await this.shutdown();
@@ -168,6 +189,29 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
       messageLower.startsWith('!') ||
       messageLower.includes('bot')
     );
+  }
+
+  private startNickListUpdates(channel: string): void {
+    const updateInterval = this.config.nickUpdateIntervalMs || 60000;
+    
+    // Clear any existing timer for this channel
+    const existingTimer = this.nickUpdateTimers.get(channel);
+    if (existingTimer) {
+      clearInterval(existingTimer);
+    }
+    
+    // Set up periodic updates
+    const timer = setInterval(() => {
+      this.updateChannelNicks(channel);
+    }, updateInterval);
+    
+    this.nickUpdateTimers.set(channel, timer);
+  }
+
+  private updateChannelNicks(channel: string): void {
+    // Request NAMES list from IRC server for the channel
+    // The response will be handled by the 'userlist' event
+    (this.client as any).raw('NAMES', channel);
   }
 
   private async processQueuedMessages(channel: string, messages: QueuedMessage[]): Promise<void> {
@@ -268,6 +312,12 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
 
   async shutdown(): Promise<void> {
     console.log('[IRC] Shutting down bot...');
+    
+    // Clear all nick update timers
+    for (const timer of this.nickUpdateTimers.values()) {
+      clearInterval(timer);
+    }
+    this.nickUpdateTimers.clear();
     
     // Flush any pending messages
     console.log('[IRC] Flushing pending messages...');
