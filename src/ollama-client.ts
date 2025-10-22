@@ -248,7 +248,13 @@ export class OllamaClient {
   private filterThinkBlocks(text: string): string {
     // Remove <think>...</think> blocks from the response
     // Use regex to match <think> blocks that may span multiple lines
-    return text.replace(/<think>.*?<\/think>/gis, '').trim();
+    let result = text.replace(/<think>.*?<\/think>/gis, '');
+    
+    // Also remove any remaining </think> tags and content before them
+    // that might not have an opening tag
+    result = result.replace(/.*?<\/think>/gis, '');
+    
+    return result.trim();
   }
 
   clearHistory(channel?: string): void {
