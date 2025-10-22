@@ -8,8 +8,7 @@ An intelligent IRC bot powered by Ollama AI with a flexible plugin system for ex
 - 🔌 **Plugin System**: Easily extend functionality with custom TypeScript/JavaScript plugins
 - 🛠️ **Tool Calling**: Plugins become available as tools that the AI can use naturally
 - ⏱️ **Message Debouncing**: Intelligent message queue system for efficient processing
-- 💬 **Context Awareness**: Maintains conversation history per channel with message buffer
-- 👥 **User Awareness**: Tracks channel users so the bot can mention people by name
+- 💬 **Context Awareness**: Maintains conversation history per channel
 - 🔧 **Configurable**: Flexible configuration via environment variables or JSON file
 
 ## Prerequisites
@@ -56,8 +55,6 @@ IRC_CHANNELS=#test,#mychannel
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 MESSAGE_DEBOUNCE_MS=2000
-MESSAGE_BUFFER_SIZE=50  # Number of recent messages to keep for context
-NICK_UPDATE_INTERVAL_MS=60000  # How often to update channel user list (milliseconds)
 IRC_DEBUG=false  # Set to true for verbose IRC protocol logging
 ```
 
@@ -137,13 +134,11 @@ cp examples/ollama-search-plugin.js plugins/  # Requires OLLAMA_API_KEY env vari
 
 ## How It Works
 
-1. **Message Collection**: When users mention the bot or send direct messages, messages are added to a debounced queue. All channel messages are stored in a rolling buffer for context.
-2. **User Tracking**: The bot periodically updates the list of users in each channel, allowing it to mention people by name when appropriate.
-3. **Queue Processing**: After the debounce period (default 2 seconds), queued messages are processed together
-4. **Context Building**: The bot includes recent message history, current channel users, and conversation history when sending requests to the AI
-5. **AI Processing**: Messages are sent to Ollama with full context and available tools
-6. **Tool Execution**: If the AI decides to use a tool, the plugin's execute function is called
-7. **Response**: The AI's response (potentially enriched with tool results) is sent back to IRC
+1. **Message Collection**: When users mention the bot or send direct messages, messages are added to a debounced queue
+2. **Queue Processing**: After the debounce period (default 2 seconds), queued messages are processed together
+3. **AI Processing**: Messages are sent to Ollama with context and available tools
+4. **Tool Execution**: If the AI decides to use a tool, the plugin's execute function is called
+5. **Response**: The AI's response (potentially enriched with tool results) is sent back to IRC
 
 ## Bot Interaction
 
@@ -165,11 +160,7 @@ Example interactions:
 <ollama-bot> Search result for "latest news on artificial intelligence": [summarized top result from web search]
 ```
 
-## Context and Message Management
-
-The bot provides rich context to the AI through several mechanisms:
-
-### Message Debouncing
+## Message Debouncing
 
 The bot implements a message queue system that debounces incoming messages. This allows:
 - Multiple messages to be processed together for better context
@@ -178,20 +169,6 @@ The bot implements a message queue system that debounces incoming messages. This
 - Natural conversation flow
 
 The debounce time can be adjusted via `MESSAGE_DEBOUNCE_MS` configuration.
-
-### Message Buffer
-
-All channel messages are stored in a rolling buffer (configurable via `MESSAGE_BUFFER_SIZE`, default: 50 messages). This buffer provides:
-- Recent conversation history for better context
-- Understanding of ongoing discussions
-- Ability to reference previous messages
-
-### Channel User Tracking
-
-The bot periodically fetches and updates the list of users in each channel (configurable via `NICK_UPDATE_INTERVAL_MS`, default: 60 seconds). This allows the bot to:
-- Know who is present in the channel
-- Mention users by name when appropriate
-- Provide user-aware responses
 
 ## Troubleshooting
 

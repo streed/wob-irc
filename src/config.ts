@@ -34,8 +34,6 @@ export function loadConfig(): BotConfig {
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,
-    messageBufferSize: parseInt(process.env.MESSAGE_BUFFER_SIZE || '50'),
-    nickUpdateIntervalMs: parseInt(process.env.NICK_UPDATE_INTERVAL_MS || '60000'),
   };
 
   return config;
