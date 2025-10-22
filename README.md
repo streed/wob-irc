@@ -121,14 +121,16 @@ module.exports = plugin;
 See the `examples/` directory for sample plugins:
 - `weather-plugin.js` - Get weather information (mock data)
 - `time-plugin.js` - Get current time in different timezones
-- `ollama-search-plugin.js` - Search the web using Ollama's search API and return summarized results
+- `ollama-search-plugin.js` - Search the web using Ollama's cloud API (requires API key)
 
 To use example plugins, copy them to the `plugins/` directory:
 ```bash
 cp examples/weather-plugin.js plugins/
 cp examples/time-plugin.js plugins/
-cp examples/ollama-search-plugin.js plugins/
+cp examples/ollama-search-plugin.js plugins/  # Requires OLLAMA_API_KEY env variable
 ```
+
+**Note**: The `ollama-search-plugin.js` requires an Ollama cloud API key. Get one at https://ollama.com/settings/keys and set it as the `OLLAMA_API_KEY` environment variable.
 
 ## How It Works
 
