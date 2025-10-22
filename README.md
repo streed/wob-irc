@@ -55,6 +55,7 @@ IRC_CHANNELS=#test,#mychannel
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 MESSAGE_DEBOUNCE_MS=2000
+IRC_DEBUG=false  # Set to true for verbose IRC protocol logging
 ```
 
 ### Using config.json
@@ -161,6 +162,41 @@ The bot implements a message queue system that debounces incoming messages. This
 - Natural conversation flow
 
 The debounce time can be adjusted via `MESSAGE_DEBOUNCE_MS` configuration.
+
+## Troubleshooting
+
+### IRC Connection Issues
+
+If the bot is not connecting to the IRC server, you can enable debug logging to get more information:
+
+1. Set the `IRC_DEBUG` environment variable to `true`:
+   ```bash
+   export IRC_DEBUG=true
+   npm start
+   ```
+
+2. Check the console output for detailed connection information:
+   - **Connection parameters**: Host, port, nick, TLS settings
+   - **Connection lifecycle**: `[IRC] Connecting to server...`, `[IRC] TCP connection established...`
+   - **Registration status**: `[IRC] Successfully registered with server`
+   - **Socket errors**: Look for `[IRC] Socket error:` messages with error codes
+   - **Raw IRC protocol**: When debug mode is enabled, all IRC protocol messages are logged
+
+3. Common issues and solutions:
+   - **Connection hangs**: Check firewall settings, ensure the IRC server is accessible
+   - **Socket errors (ECONNREFUSED)**: IRC server is not running or wrong host/port
+   - **Socket errors (ETIMEDOUT)**: Network timeout, check connectivity or try a different server
+   - **TLS errors**: If using TLS, ensure `IRC_TLS=true` and port is correct (usually 6697)
+   - **Nick in use**: The configured nickname is already taken, try a different one
+
+### Debug Mode Output
+
+When `IRC_DEBUG=true`, you'll see additional verbose logging including:
+- All raw IRC protocol messages (`RAW:` prefix)
+- Internal library debug messages (`DEBUG:` prefix)
+- Detailed socket-level events
+
+**Note**: Debug mode produces very verbose output and should only be used for troubleshooting.
 
 ## Architecture
 

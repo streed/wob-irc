@@ -45,7 +45,18 @@ Keep your responses brief and appropriate for IRC chat.`;
     // Load plugins first
     await this.pluginLoader.loadPlugins();
     
+    // Setup event handlers first, before connecting
+    this.setupEventHandlers();
+    
     // Setup IRC client
+    console.log('Attempting to connect to IRC server...');
+    console.log(`  Host: ${this.config.irc.host}`);
+    console.log(`  Port: ${this.config.irc.port}`);
+    console.log(`  Nick: ${this.config.irc.nick}`);
+    console.log(`  Username: ${this.config.irc.username || this.config.irc.nick}`);
+    console.log(`  TLS: ${this.config.irc.tls || false}`);
+    console.log(`  Channels to join: ${this.config.irc.channels.join(', ')}`);
+    
     this.client.connect({
       host: this.config.irc.host,
       port: this.config.irc.port,
@@ -54,19 +65,34 @@ Keep your responses brief and appropriate for IRC chat.`;
       gecos: this.config.irc.realname || 'Ollama IRC Bot',
       tls: this.config.irc.tls || false,
     });
-
-    // Setup event handlers
-    this.setupEventHandlers();
+    
+    console.log('Connection initiated, waiting for server response...');
   }
 
   private setupEventHandlers(): void {
+    // Connection lifecycle events
+    this.client.on('connecting', () => {
+      console.log('[IRC] Connecting to server...');
+    });
+
+    this.client.on('connected', () => {
+      console.log('[IRC] TCP connection established, performing registration...');
+    });
+
     this.client.on('registered', () => {
-      console.log('Connected to IRC server');
+      console.log('[IRC] Successfully registered with server');
+      console.log(`[IRC] Connected as: ${this.client.user.nick}`);
       
       // Join channels
       for (const channel of this.config.irc.channels) {
-        console.log(`Joining channel: ${channel}`);
+        console.log(`[IRC] Joining channel: ${channel}`);
         this.client.join(channel);
+      }
+    });
+
+    this.client.on('join', (event: any) => {
+      if (event.nick === this.client.user.nick) {
+        console.log(`[IRC] Successfully joined channel: ${event.channel}`);
       }
     });
 
@@ -90,11 +116,35 @@ Keep your responses brief and appropriate for IRC chat.`;
     });
 
     this.client.on('close', () => {
-      console.log('Connection closed');
+      console.log('[IRC] Connection closed');
+    });
+
+    this.client.on('socket close', () => {
+      console.log('[IRC] Socket closed');
+    });
+
+    this.client.on('socket error', (error: Error) => {
+      console.error('[IRC] Socket error:', error.message);
+      if ((error as any).code) {
+        console.error('[IRC] Error code:', (error as any).code);
+      }
     });
 
     this.client.on('error', (error) => {
-      console.error('IRC error:', error);
+      console.error('[IRC] Error:', error);
+    });
+
+    this.client.on('raw', (event: any) => {
+      // Log all raw IRC messages for debugging (can be verbose)
+      if (process.env.IRC_DEBUG === 'true') {
+        console.log('[IRC] RAW:', event.line);
+      }
+    });
+
+    this.client.on('debug', (message: string) => {
+      if (process.env.IRC_DEBUG === 'true') {
+        console.log('[IRC] DEBUG:', message);
+      }
     });
 
     // Handle graceful shutdown
@@ -173,17 +223,20 @@ Keep your responses brief and appropriate for IRC chat.`;
   }
 
   async shutdown(): Promise<void> {
-    console.log('Shutting down bot...');
+    console.log('[IRC] Shutting down bot...');
     
     // Flush any pending messages
+    console.log('[IRC] Flushing pending messages...');
     await this.messageQueue.flushAll();
     
     // Quit IRC
+    console.log('[IRC] Sending QUIT command...');
     this.client.quit('Shutting down');
     
     // Give time for quit message to send
     await new Promise(resolve => setTimeout(resolve, 1000));
     
+    console.log('[IRC] Shutdown complete');
     process.exit(0);
   }
 }
