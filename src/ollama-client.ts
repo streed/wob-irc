@@ -94,7 +94,8 @@ export class OllamaClient {
       // Update conversation history
       this.conversationHistory.set(channel, history);
 
-      return response.message.content;
+      // Filter out <think> blocks before returning
+      return this.filterThinkBlocks(response.message.content);
     } catch (error) {
       console.error('Error calling Ollama:', error);
       throw error;
@@ -109,6 +110,12 @@ export class OllamaClient {
     }
     
     return lines.join('\n');
+  }
+
+  private filterThinkBlocks(text: string): string {
+    // Remove <think>...</think> blocks from the response
+    // Use regex to match <think> blocks that may span multiple lines
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   }
 
   clearHistory(channel?: string): void {
