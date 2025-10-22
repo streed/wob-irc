@@ -1,48 +1,80 @@
-// Example weather plugin for the IRC bot
-// This is a demonstration plugin that would normally call a real weather API
+// Weather plugin for the IRC bot
+// Uses wttr.in API to fetch current weather conditions and 3-day forecast
+// Returns temperature (°F), condition (sunny/cloudy/rainy), wind speed/direction, and precipitation
 
 const plugin = {
   name: 'weather',
-  description: 'Get weather information for a location',
+  description: 'Returns current weather conditions and 3-day forecast. Provides temperature (°F), condition (sunny/cloudy/rainy), wind speed/direction, and precipitation. Works with city names, landmarks, airports, or coordinates.',
   tools: [
     {
       name: 'get_weather',
-      description: 'Get the current weather for a specific location',
+      description: 'Get current weather conditions and 3-day forecast for any location. Returns temperature in Fahrenheit, weather condition, wind speed/direction, and precipitation information.',
       parameters: {
         type: 'object',
         properties: {
-          location: {
+          query: {
             type: 'string',
-            description: 'The city or location to get weather for (e.g., "London", "New York")',
-          },
-          units: {
-            type: 'string',
-            description: 'Temperature units',
-            enum: ['celsius', 'fahrenheit'],
+            description: "Location query: city name ('London'), landmark ('~Eiffel Tower'), airport code ('LAX'), area code ('90210'), or lat,long coordinates ('34.05,-118.24'). No spaces in coordinates.",
           },
         },
-        required: ['location'],
+        required: ['query'],
       },
     },
   ],
   execute: async (toolName, parameters) => {
     if (toolName === 'get_weather') {
-      const location = parameters.location;
-      const units = parameters.units || 'celsius';
+      const query = parameters.query;
       
-      // This is mock data - in a real plugin, you would call a weather API
-      const mockWeather = {
-        temperature: units === 'celsius' ? 22 : 72,
-        condition: 'Partly Cloudy',
-        humidity: 65,
-        windSpeed: 15,
-      };
-      
-      const tempUnit = units === 'celsius' ? '°C' : '°F';
-      const windUnit = units === 'celsius' ? 'km/h' : 'mph';
-      
-      return `Weather in ${location}: ${mockWeather.condition}, ${mockWeather.temperature}${tempUnit}, ` +
-             `Humidity: ${mockWeather.humidity}%, Wind: ${mockWeather.windSpeed} ${windUnit}`;
+      try {
+        // Construct the wttr.in API URL
+        // T = no terminal sequences (plain text)
+        // u = use US units (Fahrenheit)
+        // format=4 = compact format with current + 3-day forecast
+        const url = `https://wttr.in/${encodeURIComponent(query)}?T&u&format=4`;
+        
+        // Fetch weather data
+        const response = await fetch(url);
+        
+        // Handle different status codes
+        if (response.status >= 500) {
+          return `Error: Weather service is currently unavailable (status ${response.status})`;
+        }
+        
+        if (response.status === 401 || response.status === 403) {
+          return `Error: Unauthorized access to weather service (status ${response.status})`;
+        }
+        
+        if (response.status === 400) {
+          // 400 is acceptable per spec - might be invalid location format
+          const text = await response.text();
+          return `Weather data for "${query}": ${text.trim() || 'Invalid location format'}`;
+        }
+        
+        // Success for 2xx and 3xx
+        if (response.ok || (response.status >= 300 && response.status < 400)) {
+          const text = await response.text();
+          
+          if (!text || text.trim().length === 0) {
+            return `No weather data available for: ${query}`;
+          }
+          
+          // Return the weather data - wttr.in format=4 already provides a compact format
+          return `Weather for "${query}":\n${text.trim()}`;
+        }
+        
+        // Any other status code
+        return `Error: Unexpected response from weather service (status ${response.status})`;
+        
+      } catch (error) {
+        console.error('[weather] Error fetching weather data:', error);
+        
+        // Provide helpful error messages
+        if (error.message && error.message.includes('fetch')) {
+          return `Error: Unable to connect to weather service. Please try again later.`;
+        }
+        
+        return `Error fetching weather data: ${error.message}`;
+      }
     }
     
     throw new Error(`Unknown tool: ${toolName}`);
