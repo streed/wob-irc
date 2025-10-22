@@ -1,6 +1,7 @@
 import { Ollama } from 'ollama';
 import { QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
+import { sanitizeUnicode } from './unicode-sanitizer';
 
 export class OllamaClient {
   private ollama: Ollama;
@@ -164,8 +165,9 @@ export class OllamaClient {
       // Update conversation history
       this.conversationHistory.set(channel, history);
 
-      // Filter out <think> blocks before returning
-      return this.filterThinkBlocks(response.message.content);
+      // Filter out <think> blocks and sanitize Unicode before returning
+      const filtered = this.filterThinkBlocks(response.message.content);
+      return sanitizeUnicode(filtered);
     } catch (error) {
       console.error('Error calling Ollama:', error);
       throw error;

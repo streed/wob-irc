@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Plugin } from './types';
+import { sanitizeUnicode } from './unicode-sanitizer';
 
 export class PluginLoader {
   private plugins: Map<string, Plugin> = new Map();
@@ -65,7 +66,9 @@ export class PluginLoader {
       const tool = plugin.tools.find(t => t.name === toolName);
       if (tool) {
         console.log(`Executing tool: ${toolName} from plugin: ${plugin.name}`);
-        return await plugin.execute(toolName, parameters);
+        const result = await plugin.execute(toolName, parameters);
+        // Sanitize Unicode from tool results
+        return sanitizeUnicode(result);
       }
     }
     throw new Error(`Tool not found: ${toolName}`);
