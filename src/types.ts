@@ -46,10 +46,3 @@ export interface QueuedMessage {
   message: string;
   timestamp: number;
 }
-
-export interface ChatMessage {
-  nick: string;
-  message: string;
-  timestamp: number;
-  isBot: boolean;
-}
