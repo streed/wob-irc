@@ -1,5 +1,5 @@
 import { Ollama } from 'ollama';
-import { QueuedMessage, ChannelContext } from './types';
+import { QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
 
 export class OllamaClient {
@@ -9,7 +9,6 @@ export class OllamaClient {
   private pluginLoader: PluginLoader;
   private conversationHistory: Map<string, any[]> = new Map();
   private maxHistoryLength: number = 20;
-  private channelContext: Map<string, ChannelContext> = new Map();
 
   constructor(
     host: string,
@@ -24,8 +23,8 @@ export class OllamaClient {
   }
 
   async processMessages(channel: string, messages: QueuedMessage[]): Promise<string> {
-    // Build context from queued messages including channel context
-    const context = this.buildContext(channel, messages);
+    // Build context from queued messages
+    const context = this.buildContext(messages);
     
     // Get conversation history for this channel
     let history = this.conversationHistory.get(channel) || [];
@@ -103,31 +102,9 @@ export class OllamaClient {
     }
   }
 
-  private buildContext(channel: string, messages: QueuedMessage[]): string {
+  private buildContext(messages: QueuedMessage[]): string {
     const lines: string[] = [];
     
-    // Get channel context (nicks and message buffer)
-    const context = this.channelContext.get(channel);
-    
-    if (context) {
-      // Add channel users list
-      if (context.nicks && context.nicks.length > 0) {
-        lines.push(`Channel users: ${context.nicks.join(', ')}`);
-        lines.push('');
-      }
-      
-      // Add recent message buffer for context
-      if (context.messageBuffer && context.messageBuffer.length > 0) {
-        lines.push('Recent messages:');
-        for (const msg of context.messageBuffer) {
-          lines.push(`[${msg.nick}]: ${msg.message}`);
-        }
-        lines.push('');
-      }
-    }
-    
-    // Add current messages
-    lines.push('Current messages:');
     for (const msg of messages) {
       lines.push(`[${msg.nick}]: ${msg.message}`);
     }
@@ -139,30 +116,6 @@ export class OllamaClient {
     // Remove <think>...</think> blocks from the response
     // Use regex to match <think> blocks that may span multiple lines
     return text.replace(/<think>.*?<\/think>/gis, '').trim();
-  }
-
-  updateChannelNicks(channel: string, nicks: string[]): void {
-    const context = this.channelContext.get(channel) || { nicks: [], messageBuffer: [] };
-    context.nicks = nicks;
-    this.channelContext.set(channel, context);
-  }
-
-  addToMessageBuffer(channel: string, nick: string, message: string, maxBufferSize: number): void {
-    const context = this.channelContext.get(channel) || { nicks: [], messageBuffer: [] };
-    
-    // Add new message to buffer
-    context.messageBuffer.push({
-      nick,
-      message,
-      timestamp: Date.now(),
-    });
-    
-    // Trim buffer if it exceeds max size
-    if (context.messageBuffer.length > maxBufferSize) {
-      context.messageBuffer = context.messageBuffer.slice(-maxBufferSize);
-    }
-    
-    this.channelContext.set(channel, context);
   }
 
   clearHistory(channel?: string): void {

@@ -37,8 +37,6 @@ export interface BotConfig {
   };
   messageDebounceMs: number;
   systemPrompt?: string;
-  messageBufferSize?: number;
-  nickUpdateIntervalMs?: number;
 }
 
 export interface QueuedMessage {
@@ -46,9 +44,4 @@ export interface QueuedMessage {
   nick: string;
   message: string;
   timestamp: number;
-}
-
-export interface ChannelContext {
-  nicks: string[];
-  messageBuffer: Array<{ nick: string; message: string; timestamp: number }>;
 }

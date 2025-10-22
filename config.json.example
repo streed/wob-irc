@@ -13,7 +13,5 @@
     "model": "llama3.2"
   },
   "messageDebounceMs": 2000,
-  "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.",
-  "messageBufferSize": 50,
-  "nickUpdateIntervalMs": 60000
+  "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat."
 }
