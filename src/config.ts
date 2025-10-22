@@ -31,6 +31,9 @@ export function loadConfig(): BotConfig {
     ollama: {
       host: process.env.OLLAMA_HOST || 'http://localhost:11434',
       model: process.env.OLLAMA_MODEL || 'llama3.2',
+      maxToolCallRounds: process.env.MAX_TOOL_CALL_ROUNDS 
+        ? parseInt(process.env.MAX_TOOL_CALL_ROUNDS) 
+        : undefined,
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,

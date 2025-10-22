@@ -25,7 +25,8 @@ export class IRCBot {
       this.config.ollama.host,
       this.config.ollama.model,
       this.config.systemPrompt || this.getDefaultSystemPrompt(),
-      this.pluginLoader
+      this.pluginLoader,
+      this.config.ollama.maxToolCallRounds
     );
     
     // Initialize message queue
