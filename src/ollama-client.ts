@@ -58,14 +58,38 @@ export class OllamaClient {
 
       // Handle tool calls in a loop with a maximum number of rounds
       let toolCallRound = 0;
+      const toolUsageHistory: string[] = []; // Track tool usage to detect loops
+      let maxRoundsExceeded = false;
+      
       while (response.message.tool_calls && response.message.tool_calls.length > 0) {
         toolCallRound++;
         
         // Check if we've exceeded the maximum number of rounds
         if (toolCallRound > this.maxToolCallRounds) {
           console.warn(`[Ollama] Maximum tool call rounds (${this.maxToolCallRounds}) exceeded. Stopping tool execution.`);
+          maxRoundsExceeded = true;
           break;
         }
+        
+        // Track tool usage and detect loops
+        const currentToolCalls = response.message.tool_calls
+          .map(tc => tc.function.name)
+          .sort()
+          .join(',');
+        
+        // Check if we're repeating the same tool pattern
+        if (toolUsageHistory.length >= 2) {
+          const lastPattern = toolUsageHistory[toolUsageHistory.length - 1];
+          const secondLastPattern = toolUsageHistory[toolUsageHistory.length - 2];
+          
+          if (currentToolCalls === lastPattern && currentToolCalls === secondLastPattern) {
+            console.warn(`[Ollama] Detected tool usage loop. Same tool(s) called 3 times in a row: ${currentToolCalls}`);
+            maxRoundsExceeded = true;
+            break;
+          }
+        }
+        
+        toolUsageHistory.push(currentToolCalls);
         
         // Log the current round
         console.log(`[Ollama] Tool call round ${toolCallRound}: ${response.message.tool_calls.length} tool(s) to execute`);
@@ -97,6 +121,27 @@ export class OllamaClient {
           model: this.model,
           messages: history,
           tools: tools.length > 0 ? tools : undefined,
+        });
+      }
+      
+      // If we exceeded max rounds or detected a loop, force a final response without tools
+      if (maxRoundsExceeded) {
+        console.log(`[Ollama] Requesting final response from LLM after breaking tool call loop`);
+        
+        // Add assistant's last response (with tool calls) to history
+        history.push(response.message);
+        
+        // Add a user message to prompt for a summary
+        history.push({
+          role: 'user',
+          content: 'Please provide a response based on the information gathered from the tools.',
+        });
+        
+        // Get final response without allowing more tool calls
+        response = await this.ollama.chat({
+          model: this.model,
+          messages: history,
+          tools: undefined, // Don't allow more tool calls
         });
       }
       
