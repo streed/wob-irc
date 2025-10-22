@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+config.json
+*.log
+.DS_Store
+plugins/*.js
+plugins/*.ts
+!examples/

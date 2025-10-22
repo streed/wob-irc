@@ -1,0 +1,17 @@
+{
+  "irc": {
+    "host": "irc.libera.chat",
+    "port": 6667,
+    "nick": "ollama-bot",
+    "username": "ollama",
+    "realname": "Ollama IRC Bot",
+    "channels": ["#test"],
+    "tls": false
+  },
+  "ollama": {
+    "host": "http://localhost:11434",
+    "model": "llama3.2"
+  },
+  "messageDebounceMs": 2000,
+  "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat."
+}
