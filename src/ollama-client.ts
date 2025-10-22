@@ -1,5 +1,5 @@
 import { Ollama } from 'ollama';
-import { QueuedMessage, ChatMessage } from './types';
+import { QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
 import { sanitizeUnicode } from './unicode-sanitizer';
 
@@ -9,9 +9,7 @@ export class OllamaClient {
   private systemPrompt: string;
   private pluginLoader: PluginLoader;
   private conversationHistory: Map<string, any[]> = new Map();
-  private chatHistory: Map<string, ChatMessage[]> = new Map();
   private maxHistoryLength: number = 20;
-  private maxChatHistoryLength: number = 100;
   private maxToolCallRounds: number = 10;
 
   constructor(
@@ -29,25 +27,8 @@ export class OllamaClient {
   }
 
   async processMessages(channel: string, messages: QueuedMessage[]): Promise<string> {
-    // Add incoming messages to chat history
-    const chatMessages = this.chatHistory.get(channel) || [];
-    for (const msg of messages) {
-      chatMessages.push({
-        nick: msg.nick,
-        message: msg.message,
-        timestamp: msg.timestamp,
-        isBot: false,
-      });
-    }
-    
-    // Trim chat history to last 100 messages
-    if (chatMessages.length > this.maxChatHistoryLength) {
-      chatMessages.splice(0, chatMessages.length - this.maxChatHistoryLength);
-    }
-    this.chatHistory.set(channel, chatMessages);
-    
-    // Build context from recent chat history and focus on latest messages
-    const context = this.buildContextWithHistory(chatMessages, messages);
+    // Build context from queued messages
+    const context = this.buildContext(messages);
     
     // Get conversation history for this channel
     let history = this.conversationHistory.get(channel) || [];
@@ -186,23 +167,7 @@ export class OllamaClient {
 
       // Filter out <think> blocks and sanitize Unicode before returning
       const filtered = this.filterThinkBlocks(response.message.content);
-      const cleanResponse = sanitizeUnicode(filtered);
-      
-      // Add bot response to chat history
-      chatMessages.push({
-        nick: 'bot',
-        message: cleanResponse,
-        timestamp: Date.now(),
-        isBot: true,
-      });
-      
-      // Trim chat history again if needed
-      if (chatMessages.length > this.maxChatHistoryLength) {
-        chatMessages.splice(0, chatMessages.length - this.maxChatHistoryLength);
-      }
-      this.chatHistory.set(channel, chatMessages);
-      
-      return cleanResponse;
+      return sanitizeUnicode(filtered);
     } catch (error) {
       console.error('Error calling Ollama:', error);
       throw error;
@@ -213,32 +178,6 @@ export class OllamaClient {
     const lines: string[] = [];
     
     for (const msg of messages) {
-      lines.push(`[${msg.nick}]: ${msg.message}`);
-    }
-    
-    return lines.join('\n');
-  }
-
-  private buildContextWithHistory(chatHistory: ChatMessage[], latestMessages: QueuedMessage[]): string {
-    const lines: string[] = [];
-    
-    // Add note about full conversation history
-    if (chatHistory.length > latestMessages.length) {
-      lines.push('=== Recent Conversation History ===');
-      // Show last 10 messages before the current ones for context
-      const contextSize = Math.min(10, chatHistory.length - latestMessages.length);
-      const contextMessages = chatHistory.slice(-latestMessages.length - contextSize, -latestMessages.length);
-      
-      for (const msg of contextMessages) {
-        const prefix = msg.isBot ? '[bot]' : `[${msg.nick}]`;
-        lines.push(`${prefix}: ${msg.message}`);
-      }
-      lines.push('');
-    }
-    
-    // Add current messages with emphasis
-    lines.push('=== Current Messages (respond to these) ===');
-    for (const msg of latestMessages) {
       lines.push(`[${msg.nick}]: ${msg.message}`);
     }
     
@@ -260,10 +199,8 @@ export class OllamaClient {
   clearHistory(channel?: string): void {
     if (channel) {
       this.conversationHistory.delete(channel);
-      this.chatHistory.delete(channel);
     } else {
       this.conversationHistory.clear();
-      this.chatHistory.clear();
     }
   }
 }
