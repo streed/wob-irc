@@ -1,0 +1,31 @@
+{
+  "name": "wob-irc",
+  "version": "1.0.0",
+  "description": "An IRC bot with Ollama AI integration and plugin support",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "irc",
+    "bot",
+    "ollama",
+    "ai",
+    "llm"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "irc-framework": "^4.14.0",
+    "ollama": "^0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
