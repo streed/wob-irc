@@ -9,6 +9,7 @@ export class OllamaClient {
   private pluginLoader: PluginLoader;
   private conversationHistory: Map<string, any[]> = new Map();
   private maxHistoryLength: number = 20;
+  private maxToolCallRounds: number = 10;
 
   constructor(
     host: string,
@@ -53,8 +54,25 @@ export class OllamaClient {
         tools: tools.length > 0 ? tools : undefined,
       });
 
-      // Handle tool calls in a loop
+      // Handle tool calls in a loop with a maximum number of rounds
+      let toolCallRound = 0;
       while (response.message.tool_calls && response.message.tool_calls.length > 0) {
+        toolCallRound++;
+        
+        // Check if we've exceeded the maximum number of rounds
+        if (toolCallRound > this.maxToolCallRounds) {
+          console.warn(`[Ollama] Maximum tool call rounds (${this.maxToolCallRounds}) exceeded. Stopping tool execution.`);
+          break;
+        }
+        
+        // Log the current round
+        console.log(`[Ollama] Tool call round ${toolCallRound}: ${response.message.tool_calls.length} tool(s) to execute`);
+        
+        // Warn when approaching the limit
+        if (toolCallRound >= this.maxToolCallRounds - 2) {
+          console.warn(`[Ollama] Approaching maximum tool call rounds (${toolCallRound}/${this.maxToolCallRounds})`);
+        }
+
         // Add assistant's response with tool calls to history
         history.push(response.message);
 
@@ -78,6 +96,11 @@ export class OllamaClient {
           messages: history,
           tools: tools.length > 0 ? tools : undefined,
         });
+      }
+      
+      // Log completion
+      if (toolCallRound > 0) {
+        console.log(`[Ollama] Completed ${toolCallRound} tool call round(s)`);
       }
 
       // Add final assistant response to history
