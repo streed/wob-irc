@@ -144,26 +144,21 @@ cp examples/ollama-search-plugin.js plugins/  # Requires OLLAMA_API_KEY env vari
 
 The bot responds to:
 - Direct messages to the bot
-- Messages directly addressing the bot (e.g., `botnick:` or `bot:` at the start)
-- Messages starting with `!` (commands)
-- Questions directed at the bot (containing the bot's nickname or "bot" with a question mark)
+- Messages mentioning the bot's nickname
+- Messages starting with `!`
+- Messages containing the word "bot"
 
 Example interactions:
 ```
 <user> ollama-bot: what's the weather in London?
 <ollama-bot> Weather in London: Partly Cloudy, 22°C, Humidity: 65%, Wind: 15 km/h
 
-<user> bot, what time is it in Tokyo?
+<user> what time is it in Tokyo?
 <ollama-bot> Current time in Asia/Tokyo: 1/22/2025, 2:11:43 AM
 
-<user> hey ollama-bot, can you search for latest news on artificial intelligence?
+<user> bot, search for latest news on artificial intelligence
 <ollama-bot> Search result for "latest news on artificial intelligence": [summarized top result from web search]
-
-<user> !help
-<ollama-bot> Available commands: ...
 ```
-
-The bot will NOT respond to casual mentions (e.g., "I think the bot is broken" or "that robot is cool") to avoid unnecessary interruptions in conversations.
 
 ## Message Debouncing
 

@@ -160,38 +160,15 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
   }
 
   private shouldRespond(message: string): boolean {
-    // Respond if the bot is directly addressed or asked a question
+    // Respond if the bot is mentioned
     const botNick = this.client.user.nick.toLowerCase();
     const messageLower = message.toLowerCase();
     
-    // Respond to commands starting with !
-    if (messageLower.startsWith('!')) {
-      return true;
-    }
-    
-    // Respond if the bot is directly addressed at the start (e.g., "botnick:" or "botnick,")
-    const directAddressPattern = new RegExp(`^${botNick}[,:;]\\s*`, 'i');
-    if (directAddressPattern.test(messageLower)) {
-      return true;
-    }
-    
-    // Respond if the message is a question directed at the bot
-    // (contains bot's name and ends with a question mark)
-    if (messageLower.includes(botNick) && messageLower.includes('?')) {
-      return true;
-    }
-    
-    // Respond if addressed as "bot" at the start (e.g., "bot:" or "bot,")
-    if (/^bot[,:;]\s*/i.test(messageLower)) {
-      return true;
-    }
-    
-    // Respond if it's a question addressed to "bot"
-    if (messageLower.includes('bot') && messageLower.includes('?')) {
-      return true;
-    }
-    
-    return false;
+    return (
+      messageLower.includes(botNick) ||
+      messageLower.startsWith('!') ||
+      messageLower.includes('bot')
+    );
   }
 
   private async processQueuedMessages(channel: string, messages: QueuedMessage[]): Promise<void> {
