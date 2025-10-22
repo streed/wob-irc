@@ -11,6 +11,18 @@ export class PluginLoader {
     this.pluginsDir = path.resolve(pluginsDir);
   }
 
+  /**
+   * Register a built-in plugin (called before loadPlugins)
+   */
+  registerBuiltinPlugin(plugin: Plugin): void {
+    if (this.isValidPlugin(plugin)) {
+      this.plugins.set(plugin.name, plugin);
+      console.log(`✓ Registered built-in plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`);
+    } else {
+      console.warn(`✗ Invalid built-in plugin format`);
+    }
+  }
+
   async loadPlugins(): Promise<void> {
     console.log(`Loading plugins from: ${this.pluginsDir}`);
     

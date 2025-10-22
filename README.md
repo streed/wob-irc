@@ -9,6 +9,7 @@ An intelligent IRC bot powered by Ollama AI with a flexible plugin system for ex
 - 🛠️ **Tool Calling**: Plugins become available as tools that the AI can use naturally
 - ⏱️ **Message Debouncing**: Intelligent message queue system for efficient processing
 - 💬 **Context Awareness**: Maintains conversation history per channel
+- 📜 **Message History**: Built-in tracking of up to 1000 messages per channel with search and query capabilities
 - 🔧 **Configurable**: Flexible configuration via environment variables or JSON file
 
 ## Prerequisites
@@ -164,6 +165,41 @@ Example interactions:
 <user> bot, fetch content from https://example.com/article
 <ollama-bot> "Article Title" from https://example.com/article: [extracted content from the page]
 ```
+
+## Message History
+
+The bot includes a built-in message history feature that automatically tracks all messages in each channel (up to 1000 messages per channel). The AI can query this history to answer questions about past conversations, making the bot more contextually aware.
+
+### Available Message History Tools
+
+The bot can use these tools naturally when answering questions:
+
+- **get_recent_messages**: Retrieve recent messages from the channel
+- **get_user_messages**: Get messages from a specific user
+- **search_messages**: Search for messages containing specific text
+- **get_channel_stats**: Get statistics about channel activity
+- **get_user_stats**: Get message statistics for a specific user
+
+### Example Queries
+
+```
+<user> bot, what were the recent messages?
+<bot> [Shows recent messages with timestamps]
+
+<user> bot, what did alice say earlier?
+<bot> [Shows messages from alice]
+
+<user> bot, when was Python mentioned?
+<bot> [Shows messages containing "Python"]
+
+<user> bot, show channel statistics
+<bot> [Shows total messages, active users, etc.]
+
+<user> bot, how many messages has bob sent?
+<bot> [Shows bob's message count and activity percentage]
+```
+
+The message history is stored in memory and resets when the bot restarts. No persistent storage is used.
 
 ## Message Debouncing
 

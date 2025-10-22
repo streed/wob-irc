@@ -3,6 +3,8 @@ import { BotConfig, QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
 import { MessageQueue } from './message-queue';
 import { OllamaClient } from './ollama-client';
+import { MessageHistory } from './message-history';
+import { createMessageHistoryPlugin } from './builtin-plugins/message-history-plugin';
 
 export class IRCBot {
   private client: irc.Client;
@@ -10,6 +12,7 @@ export class IRCBot {
   private pluginLoader: PluginLoader;
   private messageQueue: MessageQueue;
   private ollamaClient: OllamaClient;
+  private messageHistory: MessageHistory;
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -17,8 +20,12 @@ export class IRCBot {
     // Initialize IRC client
     this.client = new irc.Client();
     
-    // Initialize plugin loader
+    // Initialize message history
+    this.messageHistory = new MessageHistory();
+    
+    // Initialize plugin loader and register built-in plugins
     this.pluginLoader = new PluginLoader();
+    this.pluginLoader.registerBuiltinPlugin(createMessageHistoryPlugin(this.messageHistory));
     
     // Initialize Ollama client
     this.ollamaClient = new OllamaClient(
@@ -103,6 +110,11 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
       if (event.nick === this.client.user.nick) {
         return;
       }
+
+      // Track all messages in history (even if we don't respond to them)
+      // Use the channel name if it's a channel, otherwise use the target
+      const channel = event.target;
+      this.messageHistory.addMessage(channel, event.nick, event.message);
 
       // Only respond to channel messages or direct messages
       if (event.target === this.client.user.nick || this.shouldRespond(event.message)) {
