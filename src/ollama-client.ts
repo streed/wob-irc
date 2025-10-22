@@ -15,12 +15,14 @@ export class OllamaClient {
     host: string,
     model: string,
     systemPrompt: string,
-    pluginLoader: PluginLoader
+    pluginLoader: PluginLoader,
+    maxToolCallRounds?: number
   ) {
     this.ollama = new Ollama({ host });
     this.model = model;
     this.systemPrompt = systemPrompt;
     this.pluginLoader = pluginLoader;
+    this.maxToolCallRounds = maxToolCallRounds || 10;
   }
 
   async processMessages(channel: string, messages: QueuedMessage[]): Promise<string> {

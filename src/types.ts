@@ -34,6 +34,7 @@ export interface BotConfig {
   ollama: {
     host: string;
     model: string;
+    maxToolCallRounds?: number;
   };
   messageDebounceMs: number;
   systemPrompt?: string;
