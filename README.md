@@ -121,11 +121,13 @@ module.exports = plugin;
 See the `examples/` directory for sample plugins:
 - `weather-plugin.js` - Get weather information (mock data)
 - `time-plugin.js` - Get current time in different timezones
+- `ollama-search-plugin.js` - Search the web using Ollama's search API and return summarized results
 
 To use example plugins, copy them to the `plugins/` directory:
 ```bash
 cp examples/weather-plugin.js plugins/
 cp examples/time-plugin.js plugins/
+cp examples/ollama-search-plugin.js plugins/
 ```
 
 ## How It Works
@@ -151,6 +153,9 @@ Example interactions:
 
 <user> what time is it in Tokyo?
 <ollama-bot> Current time in Asia/Tokyo: 1/22/2025, 2:11:43 AM
+
+<user> bot, search for latest news on artificial intelligence
+<ollama-bot> Search result for "latest news on artificial intelligence": [summarized top result from web search]
 ```
 
 ## Message Debouncing
