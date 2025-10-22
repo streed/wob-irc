@@ -33,9 +33,9 @@ export class PluginLoader {
           
           if (this.isValidPlugin(plugin)) {
             this.plugins.set(plugin.name, plugin);
-            console.log(`✓ Loaded plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`);
+            console.log(`Loaded plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`);
           } else {
-            console.warn(`✗ Invalid plugin format in ${file}`);
+            console.warn(`Invalid plugin format in ${file}`);
           }
         } catch (error) {
           console.error(`Error loading plugin ${file}:`, error);
