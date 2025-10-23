@@ -28,7 +28,7 @@ export class IRCBot {
       console.log('Using database-backed message history with semantic search');
       this.messageHistory = new MessageHistoryDB(
         this.config.ollama.host,
-        this.config.ollama.embeddingModel || 'nomic-embed-text',
+        this.config.ollama.embeddingModel || 'nomic-embed-text:v1.5',
         this.config.messageHistory?.maxMessages,
         this.config.messageHistory?.dbPath
       );

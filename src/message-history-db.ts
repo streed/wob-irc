@@ -32,7 +32,7 @@ export class MessageHistoryDB {
 
   constructor(
     ollamaHost: string,
-    embeddingModel: string = 'nomic-embed-text',
+    embeddingModel: string = 'nomic-embed-text:v1.5',
     maxMessagesPerChannel?: number,
     dbPath?: string
   ) {
