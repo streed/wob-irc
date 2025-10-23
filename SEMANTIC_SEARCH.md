@@ -45,7 +45,9 @@ Or in `config.json`:
 }
 ```
 
-### Set to false to disable semantic search:
+### Disabling Semantic Search
+
+Set to false to disable semantic search and use in-memory storage:
 ```env
 MESSAGE_HISTORY_USE_DB=false
 ```
@@ -95,7 +97,7 @@ For exact text matching:
 
 ### Database
 
-- **Persistent**: Messages and embeddings are stored in `message-history.db` (survives bot restarts)
+- **Persistent**: Messages and embeddings are stored in `message-history.db` by default (location configurable via `MESSAGE_HISTORY_DB_PATH`)
 - **Size**: Each message with embedding takes ~3KB of space
 - **Performance**: SQLite with sqlite-vec is very efficient, even with thousands of messages
 - **Cleanup**: Old messages are automatically deleted when channel history exceeds the limit (default: 1000 messages)
