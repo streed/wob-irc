@@ -59,11 +59,10 @@ OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # Model for semantic search
 MESSAGE_DEBOUNCE_MS=2000
-MESSAGE_HISTORY_USE_DB=true  # Enable database-backed history with semantic search
 IRC_DEBUG=false  # Set to true for verbose IRC protocol logging
 ```
 
-**Note**: The bot now uses SQLite with vector embeddings by default for semantic search. This requires the `nomic-embed-text` model. Pull it with:
+**Note**: The bot uses SQLite with vector embeddings for semantic search and keeps messages for 30 days with daily summaries. This requires the `nomic-embed-text` model. Pull it with:
 ```bash
 ollama pull nomic-embed-text
 ```
@@ -183,7 +182,8 @@ The bot includes a powerful message history feature that automatically tracks al
 
 - **Persistent Storage**: Messages are stored in a SQLite database (`message-history.db`) that persists across bot restarts
 - **Vector Embeddings**: Each message is embedded using Ollama's `nomic-embed-text` model for semantic search
-- **Efficient**: Maintains up to 1000 messages per channel (configurable)
+- **30-Day Retention**: Messages are kept for 30 days, after which they are automatically cleaned up
+- **Daily Summaries**: Each day's messages are summarized into a daily summary table for historical queries
 - **Automatic**: All messages are tracked in the background without user interaction
 
 ### Available Message History Tools
@@ -196,6 +196,7 @@ The bot can use these tools naturally when answering questions:
 - **semantic_search_messages**: Search for messages by meaning/concept (semantic search)
 - **get_channel_stats**: Get statistics about channel activity
 - **get_user_stats**: Get message statistics for a specific user
+- **get_daily_summaries**: Get daily summaries of channel activity for past days
 
 ### Example Queries
 
@@ -230,6 +231,9 @@ The bot can use these tools naturally when answering questions:
 
 <user> bot, how many messages has bob sent?
 <bot> [Shows bob's message count and activity percentage]
+
+<user> bot, show daily summaries
+<bot> [Shows daily activity summaries for the past week]
 ```
 
 ### Semantic Search vs Keyword Search
@@ -238,11 +242,6 @@ The bot can use these tools naturally when answering questions:
 - **Semantic Search** (`semantic_search_messages`): Meaning-based matching, finds conceptually similar messages even with different wording
 
 ### Configuration
-
-To disable database storage and semantic search (use in-memory storage only):
-```env
-MESSAGE_HISTORY_USE_DB=false
-```
 
 To customize the database location:
 ```env

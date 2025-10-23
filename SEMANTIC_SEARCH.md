@@ -2,13 +2,17 @@
 
 ## Overview
 
-The wob-irc bot now includes semantic search capabilities for message history using SQLite with the sqlite-vec extension and Ollama embeddings. This allows the bot to find messages based on meaning and context, not just exact keyword matches.
+The wob-irc bot includes semantic search capabilities for message history using SQLite with the sqlite-vec extension and Ollama embeddings. This allows the bot to find messages based on meaning and context, not just exact keyword matches.
+
+Messages are automatically kept for 30 days with daily summaries created for historical queries.
 
 ## How It Works
 
 1. **Message Storage**: Every message sent in a channel is automatically stored in a SQLite database
 2. **Embedding Generation**: Each message is converted to a 768-dimensional vector embedding using Ollama's `nomic-embed-text` model
 3. **Vector Search**: When performing a semantic search, the query is also converted to an embedding, and sqlite-vec finds the most similar messages using L2 distance
+4. **30-Day Retention**: Messages older than 30 days are automatically cleaned up
+5. **Daily Summaries**: Completed days are summarized with message counts, user counts, and active users
 
 ## Prerequisites
 
@@ -22,12 +26,12 @@ To use semantic search, you need:
 
 ## Configuration
 
-### Enable/Disable Semantic Search
+### Database Location
 
 In `.env`:
 ```env
-# Enable database-backed history with semantic search (default: true)
-MESSAGE_HISTORY_USE_DB=true
+# Specify database path (default: message-history.db in current directory)
+MESSAGE_HISTORY_DB_PATH=/path/to/message-history.db
 
 # Specify embedding model (default: nomic-embed-text)
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
@@ -37,22 +41,13 @@ Or in `config.json`:
 ```json
 {
   "messageHistory": {
-    "useDatabase": true
+    "dbPath": "message-history.db"
   },
   "ollama": {
     "embeddingModel": "nomic-embed-text"
   }
 }
 ```
-
-### Disabling Semantic Search
-
-Set to false to disable semantic search and use in-memory storage:
-```env
-MESSAGE_HISTORY_USE_DB=false
-```
-
-This will use in-memory storage without embeddings (faster but no semantic search).
 
 ## Usage Examples
 
@@ -100,7 +95,8 @@ For exact text matching:
 - **Persistent**: Messages and embeddings are stored in `message-history.db` by default (location configurable via `MESSAGE_HISTORY_DB_PATH`)
 - **Size**: Each message with embedding takes ~3KB of space
 - **Performance**: SQLite with sqlite-vec is very efficient, even with thousands of messages
-- **Cleanup**: Old messages are automatically deleted when channel history exceeds the limit (default: 1000 messages)
+- **Cleanup**: Messages older than 30 days are automatically deleted
+- **Daily Summaries**: Each completed day is summarized into a daily summary table
 
 ## Comparison: Semantic vs Keyword Search
 
@@ -129,7 +125,7 @@ For exact text matching:
 
 3. **Optimize Performance**:
    - Keep Ollama running for faster embedding generation
-   - Adjust `MESSAGE_HISTORY_MAX` to limit database size
+   - Database automatically manages retention (30 days)
    - Use keyword search when exact matches are sufficient
 
 ## Technical Details
@@ -138,18 +134,13 @@ For exact text matching:
 - **Vector Database**: sqlite-vec extension
 - **Distance Metric**: L2 (Euclidean distance)
 - **Relevance Score**: `1 / (1 + distance)` (0-1 scale, higher is more relevant)
+- **Retention Period**: 30 days
 - **Database Schema**: 
   - `messages` table: channel, nick, message, timestamp
   - `vec_messages` virtual table: message_id, embedding (768-dimensional float vector)
+  - `daily_summaries` table: channel, date, message_count, user_count, users, created_at
 
 ## Troubleshooting
-
-### "Semantic search is not available" Error
-
-This means the bot is using in-memory storage. Check:
-1. `MESSAGE_HISTORY_USE_DB` is set to `true`
-2. SQLite and sqlite-vec dependencies are installed
-3. Bot was restarted after configuration changes
 
 ### Embeddings Not Generated
 
@@ -164,11 +155,3 @@ If you get database errors:
 1. Check write permissions for `message-history.db`
 2. Ensure enough disk space is available
 3. Try deleting the database file and restarting the bot
-
-## Migration from In-Memory Storage
-
-If you previously used in-memory storage:
-1. Set `MESSAGE_HISTORY_USE_DB=true`
-2. Restart the bot
-3. Previous in-memory history will be lost (expected)
-4. New messages will be stored in the database going forward
