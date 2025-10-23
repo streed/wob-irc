@@ -35,9 +35,15 @@ export interface BotConfig {
     host: string;
     model: string;
     maxToolCallRounds?: number;
+    embeddingModel?: string;
   };
   messageDebounceMs: number;
   systemPrompt?: string;
+  messageHistory?: {
+    useDatabase?: boolean;
+    dbPath?: string;
+    maxMessages?: number;
+  };
 }
 
 export interface QueuedMessage {

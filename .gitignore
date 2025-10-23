@@ -7,3 +7,6 @@ config.json
 plugins/*.js
 plugins/*.ts
 !examples/
+message-history.db
+message-history.db-shm
+message-history.db-wal

@@ -34,9 +34,17 @@ export function loadConfig(): BotConfig {
       maxToolCallRounds: process.env.MAX_TOOL_CALL_ROUNDS 
         ? parseInt(process.env.MAX_TOOL_CALL_ROUNDS) 
         : undefined,
+      embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text',
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,
+    messageHistory: {
+      useDatabase: process.env.MESSAGE_HISTORY_USE_DB !== 'false', // Default to true
+      dbPath: process.env.MESSAGE_HISTORY_DB_PATH,
+      maxMessages: process.env.MESSAGE_HISTORY_MAX 
+        ? parseInt(process.env.MESSAGE_HISTORY_MAX) 
+        : undefined,
+    },
   };
 
   return config;

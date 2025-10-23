@@ -9,7 +9,9 @@ An intelligent IRC bot powered by Ollama AI with a flexible plugin system for ex
 - 🛠️ **Tool Calling**: Plugins become available as tools that the AI can use naturally
 - ⏱️ **Message Debouncing**: Intelligent message queue system for efficient processing
 - 💬 **Context Awareness**: Maintains conversation history per channel
-- 📜 **Message History**: Built-in tracking of up to 1000 messages per channel with search and query capabilities
+- 📜 **Message History**: SQLite-backed persistent storage with vector embeddings
+- 🔍 **Semantic Search**: Find messages by meaning, not just keywords, using Ollama embeddings
+- 🗄️ **Persistent Storage**: Message history survives bot restarts
 - 🔧 **Configurable**: Flexible configuration via environment variables or JSON file
 
 ## Prerequisites
@@ -55,8 +57,15 @@ IRC_NICK=ollama-bot
 IRC_CHANNELS=#test,#mychannel
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.2
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # Model for semantic search
 MESSAGE_DEBOUNCE_MS=2000
+MESSAGE_HISTORY_USE_DB=true  # Enable database-backed history with semantic search
 IRC_DEBUG=false  # Set to true for verbose IRC protocol logging
+```
+
+**Note**: The bot now uses SQLite with vector embeddings by default for semantic search. This requires the `nomic-embed-text` model. Pull it with:
+```bash
+ollama pull nomic-embed-text
 ```
 
 ### Using config.json
@@ -168,7 +177,14 @@ Example interactions:
 
 ## Message History
 
-The bot includes a built-in message history feature that automatically tracks all messages in each channel (up to 1000 messages per channel). The AI can query this history to answer questions about past conversations, making the bot more contextually aware.
+The bot includes a powerful message history feature that automatically tracks all messages in each channel using SQLite with vector embeddings. This enables both traditional keyword search and semantic search capabilities.
+
+### Storage
+
+- **Persistent Storage**: Messages are stored in a SQLite database (`message-history.db`) that persists across bot restarts
+- **Vector Embeddings**: Each message is embedded using Ollama's `nomic-embed-text` model for semantic search
+- **Efficient**: Maintains up to 1000 messages per channel (configurable)
+- **Automatic**: All messages are tracked in the background without user interaction
 
 ### Available Message History Tools
 
@@ -176,12 +192,14 @@ The bot can use these tools naturally when answering questions:
 
 - **get_recent_messages**: Retrieve recent messages from the channel
 - **get_user_messages**: Get messages from a specific user
-- **search_messages**: Search for messages containing specific text
+- **search_messages**: Search for messages containing specific text (keyword search)
+- **semantic_search_messages**: Search for messages by meaning/concept (semantic search)
 - **get_channel_stats**: Get statistics about channel activity
 - **get_user_stats**: Get message statistics for a specific user
 
 ### Example Queries
 
+**Basic Queries:**
 ```
 <user> bot, what were the recent messages?
 <bot> [Shows recent messages with timestamps]
@@ -191,7 +209,22 @@ The bot can use these tools naturally when answering questions:
 
 <user> bot, when was Python mentioned?
 <bot> [Shows messages containing "Python"]
+```
 
+**Semantic Search Examples:**
+```
+<user> bot, find discussions about machine learning
+<bot> [Shows messages semantically related to ML, even without those exact words]
+
+<user> bot, what were we talking about related to API design?
+<bot> [Finds relevant conversations about APIs]
+
+<user> bot, when did someone ask about troubleshooting?
+<bot> [Finds help requests and problem-solving discussions]
+```
+
+**Statistics:**
+```
 <user> bot, show channel statistics
 <bot> [Shows total messages, active users, etc.]
 
@@ -199,7 +232,22 @@ The bot can use these tools naturally when answering questions:
 <bot> [Shows bob's message count and activity percentage]
 ```
 
-The message history is stored in memory and resets when the bot restarts. No persistent storage is used.
+### Semantic Search vs Keyword Search
+
+- **Keyword Search** (`search_messages`): Exact text matching, fast, good for finding specific words or phrases
+- **Semantic Search** (`semantic_search_messages`): Meaning-based matching, finds conceptually similar messages even with different wording
+
+### Configuration
+
+To disable database storage and semantic search (use in-memory storage only):
+```env
+MESSAGE_HISTORY_USE_DB=false
+```
+
+To customize the database location:
+```env
+MESSAGE_HISTORY_DB_PATH=/path/to/custom-location.db
+```
 
 ## Message Debouncing
 
