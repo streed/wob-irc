@@ -492,6 +492,21 @@ export class MessageHistoryDB {
   }
 
   /**
+   * Get random messages from a channel for chaos mode
+   */
+  getRandomMessages(channel: string, limit: number = 5): HistoricalMessage[] {
+    const query = this.db.prepare(`
+      SELECT channel, nick, message, timestamp
+      FROM messages
+      WHERE channel = ?
+      ORDER BY RANDOM()
+      LIMIT ?
+    `);
+
+    return query.all(channel, limit) as HistoricalMessage[];
+  }
+
+  /**
    * Get daily summaries for a channel
    */
   getDailySummaries(channel: string, limit?: number): Array<{
