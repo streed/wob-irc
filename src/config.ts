@@ -41,6 +41,10 @@ export function loadConfig(): BotConfig {
     messageHistory: {
       dbPath: process.env.MESSAGE_HISTORY_DB_PATH,
     },
+    chaosMode: process.env.CHAOS_MODE_ENABLED === 'true' ? {
+      enabled: true,
+      probability: parseFloat(process.env.CHAOS_MODE_PROBABILITY || '0.1'),
+    } : undefined,
   };
 
   return config;

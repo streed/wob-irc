@@ -9,17 +9,17 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
     tools: [
       {
         name: 'get_recent_messages',
-        description: 'Get recent messages from the current channel. Useful for reviewing what was said recently.',
+        description: 'Retrieve the most recent messages from the channel. USE THIS when users ask "what was just said?", "what are we talking about?", "show recent messages", or to understand current conversation context.',
         parameters: {
           type: 'object',
           properties: {
             channel: {
               type: 'string',
-              description: 'The channel to get messages from',
+              description: 'The IRC channel name (e.g., "#test")',
             },
             limit: {
               type: 'number',
-              description: 'Maximum number of recent messages to retrieve (default: 20, max: 100)',
+              description: 'Number of recent messages to retrieve (default: 20, max: 100)',
             },
           },
           required: ['channel'],
@@ -27,21 +27,21 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
       },
       {
         name: 'get_user_messages',
-        description: 'Get messages from a specific user in the channel. Useful for seeing what a particular person said.',
+        description: 'Get all messages from a specific user. USE THIS when users ask "what did [username] say?", "show messages from [username]", or "has [username] talked about X?".',
         parameters: {
           type: 'object',
           properties: {
             channel: {
               type: 'string',
-              description: 'The channel to search in',
+              description: 'The IRC channel name (e.g., "#test")',
             },
             nick: {
               type: 'string',
-              description: 'The nickname/handle of the user to filter by',
+              description: 'The exact username/nickname to search for',
             },
             limit: {
               type: 'number',
-              description: 'Maximum number of messages to retrieve (default: 20, max: 100)',
+              description: 'Number of messages to retrieve (default: 20, max: 100)',
             },
           },
           required: ['channel', 'nick'],
@@ -49,21 +49,21 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
       },
       {
         name: 'search_messages',
-        description: 'Search for messages containing specific text in the channel history. Useful for finding when something was mentioned (keyword search).',
+        description: 'Find messages containing exact keywords or phrases. USE THIS for questions like "when was [word] mentioned?", "find messages with [keyword]", or "search for [exact phrase]". Best for finding specific words.',
         parameters: {
           type: 'object',
           properties: {
             channel: {
               type: 'string',
-              description: 'The channel to search in',
+              description: 'The IRC channel name (e.g., "#test")',
             },
             search_text: {
               type: 'string',
-              description: 'The text to search for in messages',
+              description: 'The exact text/keyword to search for (will match partial words)',
             },
             limit: {
               type: 'number',
-              description: 'Maximum number of matching messages to retrieve (default: 20, max: 100)',
+              description: 'Number of matching messages to retrieve (default: 20, max: 100)',
             },
           },
           required: ['channel', 'search_text'],
@@ -71,21 +71,21 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
       },
       {
         name: 'semantic_search_messages',
-        description: 'Search for messages using semantic similarity (meaning-based search). Better than keyword search for finding related concepts, similar topics, or answering questions about past conversations.',
+        description: 'Find messages by meaning and context, not just keywords. USE THIS for questions like "what did we discuss about [topic]?", "find conversations related to [concept]", or "when did someone ask about [subject]?". Finds conceptually similar messages even with different wording.',
         parameters: {
           type: 'object',
           properties: {
             channel: {
               type: 'string',
-              description: 'The channel to search in',
+              description: 'The IRC channel name (e.g., "#test")',
             },
             query: {
               type: 'string',
-              description: 'The semantic query to search for (e.g., "discussions about AI", "when did we talk about the weather?")',
+              description: 'Natural language query describing what you\'re looking for (e.g., "machine learning discussions", "help with bugs")',
             },
             limit: {
               type: 'number',
-              description: 'Maximum number of matching messages to retrieve (default: 10, max: 50)',
+              description: 'Number of similar messages to retrieve (default: 10, max: 50)',
             },
           },
           required: ['channel', 'query'],
@@ -93,13 +93,13 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
       },
       {
         name: 'get_channel_stats',
-        description: 'Get statistics about the channel message history, including total messages and active users.',
+        description: 'Show channel activity statistics including total message count and list of active users. USE THIS when asked "how active is this channel?", "show channel stats", or "who talks here?".',
         parameters: {
           type: 'object',
           properties: {
             channel: {
               type: 'string',
-              description: 'The channel to get statistics for',
+              description: 'The IRC channel name (e.g., "#test")',
             },
           },
           required: ['channel'],
@@ -107,17 +107,17 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
       },
       {
         name: 'get_user_stats',
-        description: 'Get message statistics for a specific user in the channel.',
+        description: 'Show how many messages a specific user has sent and their activity percentage. USE THIS when asked "how active is [username]?", "how many messages has [username] sent?", or "show [username] stats".',
         parameters: {
           type: 'object',
           properties: {
             channel: {
               type: 'string',
-              description: 'The channel to check',
+              description: 'The IRC channel name (e.g., "#test")',
             },
             nick: {
               type: 'string',
-              description: 'The nickname/handle of the user',
+              description: 'The username/nickname to get statistics for',
             },
           },
           required: ['channel', 'nick'],
@@ -125,17 +125,17 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
       },
       {
         name: 'get_daily_summaries',
-        description: 'Get daily summaries of channel activity for past days. Shows message counts, user counts, and active users per day.',
+        description: 'View historical daily activity summaries showing message and user counts per day. USE THIS when asked "show activity history", "what happened yesterday?", "show daily summaries", or to review past activity patterns.',
         parameters: {
           type: 'object',
           properties: {
             channel: {
               type: 'string',
-              description: 'The channel to get summaries for',
+              description: 'The IRC channel name (e.g., "#test")',
             },
             limit: {
               type: 'number',
-              description: 'Maximum number of daily summaries to retrieve (default: 7, max: 30)',
+              description: 'Number of days to retrieve (default: 7, max: 30)',
             },
           },
           required: ['channel'],

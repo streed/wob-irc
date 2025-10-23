@@ -11,19 +11,25 @@ export class OllamaClient {
   private conversationHistory: Map<string, any[]> = new Map();
   private maxHistoryLength: number = 20;
   private maxToolCallRounds: number = 10;
+  private chaosMode?: { enabled: boolean; probability: number };
+  private messageHistory?: any;
 
   constructor(
     host: string,
     model: string,
     systemPrompt: string,
     pluginLoader: PluginLoader,
-    maxToolCallRounds?: number
+    maxToolCallRounds?: number,
+    chaosMode?: { enabled: boolean; probability: number },
+    messageHistory?: any
   ) {
     this.ollama = new Ollama({ host });
     this.model = model;
     this.systemPrompt = systemPrompt;
     this.pluginLoader = pluginLoader;
     this.maxToolCallRounds = maxToolCallRounds || 10;
+    this.chaosMode = chaosMode;
+    this.messageHistory = messageHistory;
   }
 
   async processMessages(channel: string, messages: QueuedMessage[]): Promise<string> {
@@ -189,6 +195,25 @@ export class OllamaClient {
     // Add channel context
     lines.push(`Current channel: ${channel}`);
     lines.push('');
+    
+    // In chaos mode, add random historical messages for unpredictable responses
+    if (this.chaosMode?.enabled && this.messageHistory) {
+      try {
+        const randomMessages = this.messageHistory.getRandomMessages(channel, 5);
+        if (randomMessages.length > 0) {
+          lines.push('Random historical messages for context:');
+          for (const msg of randomMessages) {
+            const date = new Date(msg.timestamp);
+            const timeStr = date.toLocaleTimeString();
+            lines.push(`[${timeStr}] <${msg.nick}> ${msg.message}`);
+          }
+          lines.push('');
+        }
+      } catch (error) {
+        // Silently ignore errors getting random messages
+        console.error('Error getting random messages for chaos mode:', error);
+      }
+    }
     
     // Add messages with relative timestamps
     lines.push('Recent messages:');

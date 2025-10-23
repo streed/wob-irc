@@ -42,6 +42,10 @@ export interface BotConfig {
   messageHistory?: {
     dbPath?: string;
   };
+  chaosMode?: {
+    enabled: boolean;
+    probability: number; // 0.0 to 1.0, chance to randomly respond
+  };
 }
 
 export interface QueuedMessage {

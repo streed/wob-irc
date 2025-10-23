@@ -39,7 +39,9 @@ export class IRCBot {
       this.config.ollama.model,
       this.config.systemPrompt || this.getDefaultSystemPrompt(),
       this.pluginLoader,
-      this.config.ollama.maxToolCallRounds
+      this.config.ollama.maxToolCallRounds,
+      this.config.chaosMode,
+      this.messageHistory
     );
     
     // Initialize message queue
@@ -51,9 +53,25 @@ export class IRCBot {
 
   private getDefaultSystemPrompt(): string {
     return `You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. 
-You have access to various tools that you can use to help users. Use these tools naturally when they would be helpful to answer questions or perform tasks.
 Keep your responses brief and appropriate for IRC chat.
-IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, underscores, backticks, or other markdown syntax.`;
+
+IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, underscores, backticks, or other markdown syntax.
+
+TOOLS AVAILABLE TO YOU:
+You have access to powerful tools that can help you answer questions more effectively. ALWAYS consider using these tools when they would be helpful:
+
+1. MESSAGE HISTORY TOOLS - Use these frequently to provide context-aware responses:
+   - get_recent_messages: See what was just discussed in the channel
+   - get_user_messages: Find what a specific person said
+   - search_messages: Search for specific words or phrases in history (keyword search)
+   - semantic_search_messages: Find messages by meaning/concept (great for "what did we discuss about X?")
+   - get_channel_stats: Show channel activity statistics
+   - get_user_stats: Show how active a specific user has been
+   - get_daily_summaries: Review past days' activity summaries
+
+2. OTHER TOOLS - Additional tools may be available depending on loaded plugins
+
+When users ask about past conversations, what someone said, or topics discussed, IMMEDIATELY use the appropriate message history tool. The tools are fast and provide accurate information directly from the chat logs.`;
   }
 
   async start(): Promise<void> {
@@ -207,11 +225,23 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
     const botNick = this.client.user.nick.toLowerCase();
     const messageLower = message.toLowerCase();
     
-    return (
+    // Check for explicit triggers
+    const explicitTrigger = (
       messageLower.includes(botNick) ||
       messageLower.startsWith('!') ||
       messageLower.includes('bot')
     );
+    
+    // Check for chaos mode random response
+    if (!explicitTrigger && this.config.chaosMode?.enabled) {
+      const randomValue = Math.random();
+      if (randomValue < this.config.chaosMode.probability) {
+        console.log(`[Chaos Mode] Random response triggered! (${(randomValue * 100).toFixed(2)}% < ${(this.config.chaosMode.probability * 100).toFixed(0)}%)`);
+        return true;
+      }
+    }
+    
+    return explicitTrigger;
   }
 
   private async processQueuedMessages(channel: string, messages: QueuedMessage[]): Promise<void> {

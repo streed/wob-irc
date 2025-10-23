@@ -18,5 +18,9 @@
   "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.",
   "messageHistory": {
     "dbPath": "message-history.db"
+  },
+  "chaosMode": {
+    "enabled": false,
+    "probability": 0.1
   }
 }
