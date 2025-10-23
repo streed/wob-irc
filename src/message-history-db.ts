@@ -429,9 +429,9 @@ export class MessageHistoryDB {
       SELECT COUNT(*) as count
       FROM messages
       WHERE channel = ?
-    `).get(channel) as { count: number };
+    `).get(channel) as { count: number | bigint };
 
-    return result.count;
+    return Number(result.count);
   }
 
   /**
@@ -442,9 +442,9 @@ export class MessageHistoryDB {
       SELECT COUNT(*) as count
       FROM messages
       WHERE channel = ? AND nick LIKE ?
-    `).get(channel, nick) as { count: number };
+    `).get(channel, nick) as { count: number | bigint };
 
-    return result.count;
+    return Number(result.count);
   }
 
   /**
