@@ -177,7 +177,11 @@ export class OllamaClient {
   private buildContext(channel: string, messages: QueuedMessage[]): string {
     const lines: string[] = [];
     
-    // Add channel context at the beginning
+    // Add current date/time at the beginning
+    const currentDate = new Date().toISOString();
+    lines.push(`Current date and time: ${currentDate}`);
+    
+    // Add channel context
     lines.push(`Current channel: ${channel}`);
     lines.push('');
     
