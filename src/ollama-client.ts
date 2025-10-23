@@ -176,20 +176,47 @@ export class OllamaClient {
 
   private buildContext(channel: string, messages: QueuedMessage[]): string {
     const lines: string[] = [];
+    const now = new Date();
     
-    // Add current date/time at the beginning
-    const currentDate = new Date().toISOString();
-    lines.push(`Current date and time: ${currentDate}`);
+    // Add comprehensive temporal context
+    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC' });
+    
+    lines.push(`Current date and time (UTC): ${dayOfWeek}, ${dateStr} at ${timeStr}`);
+    lines.push(`ISO timestamp: ${now.toISOString()}`);
     
     // Add channel context
     lines.push(`Current channel: ${channel}`);
     lines.push('');
     
+    // Add messages with relative timestamps
+    lines.push('Recent messages:');
     for (const msg of messages) {
-      lines.push(`[${msg.nick}]: ${msg.message}`);
+      const messageAge = now.getTime() - msg.timestamp;
+      const secondsAgo = Math.floor(messageAge / 1000);
+      const timeAgo = this.formatTimeAgo(secondsAgo);
+      lines.push(`[${msg.nick}] (${timeAgo}): ${msg.message}`);
     }
     
     return lines.join('\n');
+  }
+
+  private formatTimeAgo(seconds: number): string {
+    if (seconds < 5) {
+      return 'just now';
+    } else if (seconds < 60) {
+      return `${seconds}s ago`;
+    } else if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      return `${minutes}m ago`;
+    } else if (seconds < 86400) {
+      const hours = Math.floor(seconds / 3600);
+      return `${hours}h ago`;
+    } else {
+      const days = Math.floor(seconds / 86400);
+      return `${days}d ago`;
+    }
   }
 
   private filterThinkBlocks(text: string): string {
