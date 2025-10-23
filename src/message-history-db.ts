@@ -52,6 +52,10 @@ export class MessageHistoryDB {
     // Initialize SQLite database
     this.db = new Database(this.dbPath);
     
+    // Enable safe integers mode to ensure lastInsertRowid returns bigint
+    // This is required for sqlite-vec which expects INTEGER (not REAL) for primary keys
+    this.db.defaultSafeIntegers(true);
+    
     // Load sqlite-vec extension
     sqliteVec.load(this.db);
 
@@ -117,7 +121,7 @@ export class MessageHistoryDB {
       `);
       
       const result = insertMessage.run(channel, nick, message, Date.now());
-      const messageId = result.lastInsertRowid as number;
+      const messageId = result.lastInsertRowid as bigint;
 
       // Generate and store embedding asynchronously
       // We don't await this to avoid blocking IRC message processing
@@ -136,7 +140,7 @@ export class MessageHistoryDB {
   /**
    * Generate and store embedding for a message (async)
    */
-  private async generateAndStoreEmbedding(messageId: number, message: string): Promise<void> {
+  private async generateAndStoreEmbedding(messageId: number | bigint, message: string): Promise<void> {
     try {
       const embedding = await this.generateEmbedding(message);
       
@@ -171,7 +175,7 @@ export class MessageHistoryDB {
         WHERE channel = ?
         ORDER BY timestamp ASC
         LIMIT ?
-      `).all(channel, toDelete) as { id: number }[];
+      `).all(channel, toDelete) as { id: number | bigint }[];
 
       if (oldestIds.length > 0) {
         const ids = oldestIds.map(row => row.id);
@@ -366,7 +370,7 @@ export class MessageHistoryDB {
     // Get message IDs for the channel
     const messageIds = this.db.prepare(`
       SELECT id FROM messages WHERE channel = ?
-    `).all(channel) as { id: number }[];
+    `).all(channel) as { id: number | bigint }[];
 
     if (messageIds.length > 0) {
       const ids = messageIds.map(row => row.id);
