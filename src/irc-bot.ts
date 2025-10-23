@@ -13,6 +13,7 @@ export class IRCBot {
   private messageQueue: MessageQueue;
   private ollamaClient: OllamaClient;
   private messageHistory: MessageHistoryDB;
+  private joinedChannels: Set<string> = new Set();
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -107,6 +108,21 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
     this.client.on('join', (event: any) => {
       if (event.nick === this.client.user.nick) {
         console.log(`[IRC] Successfully joined channel: ${event.channel}`);
+        this.joinedChannels.add(event.channel);
+      }
+    });
+
+    this.client.on('part', (event: any) => {
+      if (event.nick === this.client.user.nick) {
+        console.log(`[IRC] Left channel: ${event.channel}`);
+        this.joinedChannels.delete(event.channel);
+      }
+    });
+
+    this.client.on('kick', (event: any) => {
+      if (event.kicked === this.client.user.nick) {
+        console.log(`[IRC] Kicked from channel: ${event.channel}`);
+        this.joinedChannels.delete(event.channel);
       }
     });
 
@@ -116,16 +132,19 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
         return;
       }
 
-      // Track all messages in history (even if we don't respond to them)
+      // Track messages in history only if they're from channels we've joined
       // Use the channel name if it's a channel, otherwise use the target
       const channel = event.target;
       
-      // Handle both sync (MessageHistory) and async (MessageHistoryDB) addMessage
-      const result = this.messageHistory.addMessage(channel, event.nick, event.message);
-      if (result instanceof Promise) {
-        result.catch(err => {
-          console.error('Error adding message to history:', err);
-        });
+      // Only store messages from joined channels
+      if (this.joinedChannels.has(channel)) {
+        // Handle both sync (MessageHistory) and async (MessageHistoryDB) addMessage
+        const result = this.messageHistory.addMessage(channel, event.nick, event.message);
+        if (result instanceof Promise) {
+          result.catch(err => {
+            console.error('Error adding message to history:', err);
+          });
+        }
       }
 
       // Only respond to channel messages or direct messages
