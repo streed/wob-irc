@@ -3,7 +3,6 @@ import { BotConfig, QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
 import { MessageQueue } from './message-queue';
 import { OllamaClient } from './ollama-client';
-import { MessageHistory } from './message-history';
 import { MessageHistoryDB } from './message-history-db';
 import { createMessageHistoryPlugin } from './builtin-plugins/message-history-plugin';
 
@@ -13,7 +12,7 @@ export class IRCBot {
   private pluginLoader: PluginLoader;
   private messageQueue: MessageQueue;
   private ollamaClient: OllamaClient;
-  private messageHistory: MessageHistory | MessageHistoryDB;
+  private messageHistory: MessageHistoryDB;
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -21,21 +20,13 @@ export class IRCBot {
     // Initialize IRC client
     this.client = new irc.Client();
     
-    // Initialize message history (use database by default)
-    const useDatabase = this.config.messageHistory?.useDatabase !== false;
-    
-    if (useDatabase) {
-      console.log('Using database-backed message history with semantic search');
-      this.messageHistory = new MessageHistoryDB(
-        this.config.ollama.host,
-        this.config.ollama.embeddingModel || 'nomic-embed-text:v1.5',
-        this.config.messageHistory?.maxMessages,
-        this.config.messageHistory?.dbPath
-      );
-    } else {
-      console.log('Using in-memory message history (semantic search disabled)');
-      this.messageHistory = new MessageHistory(this.config.messageHistory?.maxMessages);
-    }
+    // Initialize message history with database (always)
+    console.log('Using database-backed message history with 30-day retention and daily summaries');
+    this.messageHistory = new MessageHistoryDB(
+      this.config.ollama.host,
+      this.config.ollama.embeddingModel || 'nomic-embed-text:v1.5',
+      this.config.messageHistory?.dbPath
+    );
     
     // Initialize plugin loader and register built-in plugins
     this.pluginLoader = new PluginLoader();
@@ -307,11 +298,9 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
     console.log('[IRC] Flushing pending messages...');
     await this.messageQueue.flushAll();
     
-    // Close database if using MessageHistoryDB
-    if ('close' in this.messageHistory) {
-      console.log('[IRC] Closing message history database...');
-      this.messageHistory.close();
-    }
+    // Close database
+    console.log('[IRC] Closing message history database...');
+    this.messageHistory.close();
     
     // Quit IRC
     console.log('[IRC] Sending QUIT command...');

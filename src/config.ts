@@ -39,11 +39,7 @@ export function loadConfig(): BotConfig {
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,
     messageHistory: {
-      useDatabase: process.env.MESSAGE_HISTORY_USE_DB !== 'false', // Default to true
       dbPath: process.env.MESSAGE_HISTORY_DB_PATH,
-      maxMessages: process.env.MESSAGE_HISTORY_MAX 
-        ? parseInt(process.env.MESSAGE_HISTORY_MAX) 
-        : undefined,
     },
   };
 
