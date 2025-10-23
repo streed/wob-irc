@@ -11,8 +11,14 @@
   "ollama": {
     "host": "http://localhost:11434",
     "model": "llama3.2",
-    "maxToolCallRounds": 10
+    "maxToolCallRounds": 10,
+    "embeddingModel": "nomic-embed-text"
   },
   "messageDebounceMs": 2000,
-  "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat."
+  "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.",
+  "messageHistory": {
+    "useDatabase": true,
+    "dbPath": "message-history.db",
+    "maxMessages": 1000
+  }
 }

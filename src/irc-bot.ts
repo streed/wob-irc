@@ -4,6 +4,7 @@ import { PluginLoader } from './plugin-loader';
 import { MessageQueue } from './message-queue';
 import { OllamaClient } from './ollama-client';
 import { MessageHistory } from './message-history';
+import { MessageHistoryDB } from './message-history-db';
 import { createMessageHistoryPlugin } from './builtin-plugins/message-history-plugin';
 
 export class IRCBot {
@@ -12,7 +13,7 @@ export class IRCBot {
   private pluginLoader: PluginLoader;
   private messageQueue: MessageQueue;
   private ollamaClient: OllamaClient;
-  private messageHistory: MessageHistory;
+  private messageHistory: MessageHistory | MessageHistoryDB;
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -20,8 +21,21 @@ export class IRCBot {
     // Initialize IRC client
     this.client = new irc.Client();
     
-    // Initialize message history
-    this.messageHistory = new MessageHistory();
+    // Initialize message history (use database by default)
+    const useDatabase = this.config.messageHistory?.useDatabase !== false;
+    
+    if (useDatabase) {
+      console.log('Using database-backed message history with semantic search');
+      this.messageHistory = new MessageHistoryDB(
+        this.config.ollama.host,
+        this.config.ollama.embeddingModel || 'nomic-embed-text',
+        this.config.messageHistory?.maxMessages,
+        this.config.messageHistory?.dbPath
+      );
+    } else {
+      console.log('Using in-memory message history (semantic search disabled)');
+      this.messageHistory = new MessageHistory(this.config.messageHistory?.maxMessages);
+    }
     
     // Initialize plugin loader and register built-in plugins
     this.pluginLoader = new PluginLoader();
@@ -114,7 +128,14 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
       // Track all messages in history (even if we don't respond to them)
       // Use the channel name if it's a channel, otherwise use the target
       const channel = event.target;
-      this.messageHistory.addMessage(channel, event.nick, event.message);
+      
+      // Handle both sync (MessageHistory) and async (MessageHistoryDB) addMessage
+      const result = this.messageHistory.addMessage(channel, event.nick, event.message);
+      if (result instanceof Promise) {
+        result.catch(err => {
+          console.error('Error adding message to history:', err);
+        });
+      }
 
       // Only respond to channel messages or direct messages
       if (event.target === this.client.user.nick || this.shouldRespond(event.message)) {
@@ -285,6 +306,12 @@ IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, u
     // Flush any pending messages
     console.log('[IRC] Flushing pending messages...');
     await this.messageQueue.flushAll();
+    
+    // Close database if using MessageHistoryDB
+    if ('close' in this.messageHistory) {
+      console.log('[IRC] Closing message history database...');
+      this.messageHistory.close();
+    }
     
     // Quit IRC
     console.log('[IRC] Sending QUIT command...');

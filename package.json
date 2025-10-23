@@ -19,11 +19,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "better-sqlite3": "^12.4.1",
     "dotenv": "^17.2.3",
     "irc-framework": "^4.14.0",
-    "ollama": "^0.6.0"
+    "ollama": "^0.6.0",
+    "sqlite-vec": "^0.1.7-alpha.2"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.9.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
