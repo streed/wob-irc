@@ -28,7 +28,7 @@ export class OllamaClient {
 
   async processMessages(channel: string, messages: QueuedMessage[]): Promise<string> {
     // Build context from queued messages
-    const context = this.buildContext(messages);
+    const context = this.buildContext(channel, messages);
     
     // Get conversation history for this channel
     let history = this.conversationHistory.get(channel) || [];
@@ -174,8 +174,12 @@ export class OllamaClient {
     }
   }
 
-  private buildContext(messages: QueuedMessage[]): string {
+  private buildContext(channel: string, messages: QueuedMessage[]): string {
     const lines: string[] = [];
+    
+    // Add channel context at the beginning
+    lines.push(`Current channel: ${channel}`);
+    lines.push('');
     
     for (const msg of messages) {
       lines.push(`[${msg.nick}]: ${msg.message}`);
