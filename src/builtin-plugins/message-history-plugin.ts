@@ -263,7 +263,7 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
           const formatted = summaries.map(summary => {
             const userList = summary.users.slice(0, 5).join(', ');
             const moreUsers = summary.users.length > 5 ? ` and ${summary.users.length - 5} more` : '';
-            return `${summary.date}: ${summary.message_count} messages, ${summary.user_count} users (${userList}${moreUsers})`;
+            return `${summary.date}: ${summary.message_count} messages by ${summary.user_count} users (${userList}${moreUsers})`;
           }).join('\n');
 
           return formatted;
