@@ -1,9 +1,8 @@
 // Built-in plugin for querying message history
 import { Plugin } from '../types';
-import { MessageHistory } from '../message-history';
 import { MessageHistoryDB } from '../message-history-db';
 
-export function createMessageHistoryPlugin(messageHistory: MessageHistory | MessageHistoryDB): Plugin {
+export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Plugin {
   return {
     name: 'message-history',
     description: 'Query and search through channel message history',
@@ -124,6 +123,24 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistory | Mess
           required: ['channel', 'nick'],
         },
       },
+      {
+        name: 'get_daily_summaries',
+        description: 'Get daily summaries of channel activity for past days. Shows message counts, user counts, and active users per day.',
+        parameters: {
+          type: 'object',
+          properties: {
+            channel: {
+              type: 'string',
+              description: 'The channel to get summaries for',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of daily summaries to retrieve (default: 7, max: 30)',
+            },
+          },
+          required: ['channel'],
+        },
+      },
     ],
     execute: async (toolName: string, parameters: Record<string, any>): Promise<string> => {
       const { channel, nick, search_text, query, limit } = parameters;
@@ -181,29 +198,24 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistory | Mess
         }
 
         case 'semantic_search_messages': {
-          // Check if this is MessageHistoryDB with semantic search capability
-          if ('semanticSearch' in messageHistory) {
-            const semanticMaxLimit = 50;
-            const semanticDefaultLimit = 10;
-            const semanticLimit = Math.min(limit || semanticDefaultLimit, semanticMaxLimit);
-            
-            const results = await (messageHistory as any).semanticSearch(channel, query, semanticLimit);
-            
-            if (results.length === 0) {
-              return `No semantically similar messages found for "${query}" in ${channel}.`;
-            }
-
-            const formatted = results.map((result: any) => {
-              const date = new Date(result.timestamp);
-              const timeStr = date.toLocaleTimeString();
-              const relevanceScore = (1 / (1 + result.distance)).toFixed(2); // Convert distance to relevance (0-1)
-              return `[${timeStr}] <${result.nick}> ${result.message} (relevance: ${relevanceScore})`;
-            }).join('\n');
-
-            return `Semantically similar messages for "${query}" in ${channel} (${results.length} result${results.length === 1 ? '' : 's'}):\n${formatted}`;
-          } else {
-            return `Semantic search is not available. The message history is using in-memory storage. Please enable database storage for semantic search.`;
+          const semanticMaxLimit = 50;
+          const semanticDefaultLimit = 10;
+          const semanticLimit = Math.min(limit || semanticDefaultLimit, semanticMaxLimit);
+          
+          const results = await messageHistory.semanticSearch(channel, query, semanticLimit);
+          
+          if (results.length === 0) {
+            return `No semantically similar messages found for "${query}" in ${channel}.`;
           }
+
+          const formatted = results.map((result) => {
+            const date = new Date(result.timestamp);
+            const timeStr = date.toLocaleTimeString();
+            const relevanceScore = (1 / (1 + result.distance)).toFixed(2); // Convert distance to relevance (0-1)
+            return `[${timeStr}] <${result.nick}> ${result.message} (relevance: ${relevanceScore})`;
+          }).join('\n');
+
+          return `Semantically similar messages for "${query}" in ${channel} (${results.length} result${results.length === 1 ? '' : 's'}):\n${formatted}`;
         }
 
         case 'get_channel_stats': {
@@ -241,6 +253,26 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistory | Mess
 - Messages: ${userMessageCount}
 - Percentage of channel activity: ${percentage}%
 - Channel total: ${totalMessages} messages`;
+        }
+
+        case 'get_daily_summaries': {
+          const summaryMaxLimit = 30;
+          const summaryDefaultLimit = 7;
+          const summaryLimit = Math.min(limit || summaryDefaultLimit, summaryMaxLimit);
+          
+          const summaries = messageHistory.getDailySummaries(channel, summaryLimit);
+          
+          if (summaries.length === 0) {
+            return `No daily summaries available for ${channel}.`;
+          }
+
+          const formatted = summaries.map(summary => {
+            const userList = summary.users.slice(0, 5).join(', ');
+            const moreUsers = summary.users.length > 5 ? ` and ${summary.users.length - 5} more` : '';
+            return `${summary.date}: ${summary.message_count} messages from ${summary.user_count} users (${userList}${moreUsers})`;
+          }).join('\n');
+
+          return `Daily summaries for ${channel} (last ${summaries.length} day${summaries.length === 1 ? '' : 's'}):\n${formatted}`;
         }
 
         default:

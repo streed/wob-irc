@@ -40,9 +40,7 @@ export interface BotConfig {
   messageDebounceMs: number;
   systemPrompt?: string;
   messageHistory?: {
-    useDatabase?: boolean;
     dbPath?: string;
-    maxMessages?: number;
   };
 }
 

@@ -27,19 +27,14 @@ export class MessageHistoryDB {
   private db: Database.Database;
   private ollama: Ollama;
   private embeddingModel: string;
-  private maxMessagesPerChannel: number = 1000;
   private dbPath: string;
+  private retentionDays: number = 30; // Keep messages for 30 days
 
   constructor(
     ollamaHost: string,
     embeddingModel: string = 'nomic-embed-text:v1.5',
-    maxMessagesPerChannel?: number,
     dbPath?: string
   ) {
-    if (maxMessagesPerChannel !== undefined) {
-      this.maxMessagesPerChannel = maxMessagesPerChannel;
-    }
-
     // Set database path
     this.dbPath = dbPath || path.join(process.cwd(), 'message-history.db');
     
@@ -91,6 +86,24 @@ export class MessageHistoryDB {
         embedding FLOAT[768]
       );
     `);
+
+    // Create daily summary table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_summaries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel TEXT NOT NULL,
+        date TEXT NOT NULL,
+        message_count INTEGER NOT NULL,
+        user_count INTEGER NOT NULL,
+        users TEXT NOT NULL,
+        summary TEXT,
+        created_at INTEGER NOT NULL,
+        UNIQUE(channel, date)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_daily_summaries_channel ON daily_summaries(channel);
+      CREATE INDEX IF NOT EXISTS idx_daily_summaries_date ON daily_summaries(date);
+    `);
   }
 
   /**
@@ -129,8 +142,11 @@ export class MessageHistoryDB {
         console.error(`Failed to generate embedding for message ${messageId}:`, err);
       });
 
-      // Trim old messages if needed
-      this.trimChannel(channel);
+      // Clean up old messages (older than 30 days) periodically
+      // We do this asynchronously to avoid blocking
+      this.cleanupOldMessages().catch(err => {
+        console.error('Failed to cleanup old messages:', err);
+      });
     } catch (error) {
       console.error('Error adding message to database:', error);
       throw error;
@@ -160,33 +176,115 @@ export class MessageHistoryDB {
   }
 
   /**
-   * Trim old messages from a channel to maintain max size
+   * Clean up messages older than retention period (30 days)
+   * and create daily summaries for complete days
    */
-  private trimChannel(channel: string): void {
-    const count = this.db.prepare('SELECT COUNT(*) as count FROM messages WHERE channel = ?')
-      .get(channel) as { count: number };
+  private async cleanupOldMessages(): Promise<void> {
+    try {
+      // Calculate cutoff timestamp (30 days ago)
+      const retentionMs = this.retentionDays * 24 * 60 * 60 * 1000;
+      const cutoffTimestamp = Date.now() - retentionMs;
 
-    if (count.count > this.maxMessagesPerChannel) {
-      const toDelete = count.count - this.maxMessagesPerChannel;
-      
-      // Get IDs of oldest messages to delete
-      const oldestIds = this.db.prepare(`
+      // Get messages to delete (older than 30 days)
+      const oldMessages = this.db.prepare(`
         SELECT id FROM messages
-        WHERE channel = ?
-        ORDER BY timestamp ASC
-        LIMIT ?
-      `).all(channel, toDelete) as { id: number | bigint }[];
+        WHERE timestamp < ?
+      `).all(cutoffTimestamp) as { id: number | bigint }[];
 
-      if (oldestIds.length > 0) {
-        const ids = oldestIds.map(row => row.id);
+      if (oldMessages.length > 0) {
+        console.log(`Cleaning up ${oldMessages.length} messages older than ${this.retentionDays} days`);
+        
+        const ids = oldMessages.map(row => row.id);
+        const placeholders = ids.map(() => '?').join(',');
         
         // Delete from vec_messages first (foreign key constraint)
-        const placeholders = ids.map(() => '?').join(',');
         this.db.prepare(`DELETE FROM vec_messages WHERE message_id IN (${placeholders})`).run(...ids);
         
         // Delete from messages
         this.db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(...ids);
       }
+
+      // Summarize completed days (yesterday and before)
+      await this.summarizeCompletedDays();
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+      // Don't throw - cleanup failures shouldn't stop message processing
+    }
+  }
+
+  /**
+   * Summarize messages from completed days (not today)
+   */
+  private async summarizeCompletedDays(): Promise<void> {
+    try {
+      // Get the start of today
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+      // Find channels and dates that need summarization
+      const needSummary = this.db.prepare(`
+        SELECT DISTINCT 
+          channel,
+          date(timestamp / 1000, 'unixepoch', 'localtime') as date
+        FROM messages
+        WHERE timestamp < ?
+        AND (channel, date(timestamp / 1000, 'unixepoch', 'localtime')) NOT IN (
+          SELECT channel, date FROM daily_summaries
+        )
+        ORDER BY date
+      `).all(todayStart) as { channel: string; date: string }[];
+
+      for (const { channel, date } of needSummary) {
+        await this.createDailySummary(channel, date);
+      }
+    } catch (error) {
+      console.error('Error summarizing completed days:', error);
+    }
+  }
+
+  /**
+   * Create a daily summary for a specific channel and date
+   */
+  private async createDailySummary(channel: string, date: string): Promise<void> {
+    try {
+      // Parse date string (YYYY-MM-DD format)
+      const [year, month, day] = date.split('-').map(Number);
+      const dayStart = new Date(year, month - 1, day).getTime();
+      const dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1;
+
+      // Get messages for this day
+      const messages = this.db.prepare(`
+        SELECT nick, message, timestamp
+        FROM messages
+        WHERE channel = ? AND timestamp >= ? AND timestamp < ?
+        ORDER BY timestamp ASC
+      `).all(channel, dayStart, dayEnd) as { nick: string; message: string; timestamp: number }[];
+
+      if (messages.length === 0) {
+        return;
+      }
+
+      // Calculate statistics
+      const userSet = new Set(messages.map(m => m.nick));
+      const users = Array.from(userSet);
+
+      // Insert summary
+      this.db.prepare(`
+        INSERT OR REPLACE INTO daily_summaries 
+        (channel, date, message_count, user_count, users, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        channel,
+        date,
+        messages.length,
+        users.length,
+        JSON.stringify(users),
+        Date.now()
+      );
+
+      console.log(`Created daily summary for ${channel} on ${date}: ${messages.length} messages from ${users.length} users`);
+    } catch (error) {
+      console.error(`Error creating daily summary for ${channel} on ${date}:`, error);
     }
   }
 
@@ -331,9 +429,9 @@ export class MessageHistoryDB {
       SELECT COUNT(*) as count
       FROM messages
       WHERE channel = ?
-    `).get(channel) as { count: number };
+    `).get(channel) as { count: number | bigint };
 
-    return result.count;
+    return Number(result.count);
   }
 
   /**
@@ -344,9 +442,9 @@ export class MessageHistoryDB {
       SELECT COUNT(*) as count
       FROM messages
       WHERE channel = ? AND nick LIKE ?
-    `).get(channel, nick) as { count: number };
+    `).get(channel, nick) as { count: number | bigint };
 
-    return result.count;
+    return Number(result.count);
   }
 
   /**
@@ -390,6 +488,45 @@ export class MessageHistoryDB {
   clearAll(): void {
     this.db.exec('DELETE FROM vec_messages');
     this.db.exec('DELETE FROM messages');
+    this.db.exec('DELETE FROM daily_summaries');
+  }
+
+  /**
+   * Get daily summaries for a channel
+   */
+  getDailySummaries(channel: string, limit?: number): Array<{
+    channel: string;
+    date: string;
+    message_count: number;
+    user_count: number;
+    users: string[];
+    created_at: number;
+  }> {
+    const query = limit
+      ? this.db.prepare(`
+          SELECT channel, date, message_count, user_count, users, created_at
+          FROM daily_summaries
+          WHERE channel = ?
+          ORDER BY date DESC
+          LIMIT ?
+        `)
+      : this.db.prepare(`
+          SELECT channel, date, message_count, user_count, users, created_at
+          FROM daily_summaries
+          WHERE channel = ?
+          ORDER BY date DESC
+        `);
+
+    const results = limit ? query.all(channel, limit) : query.all(channel);
+    
+    return (results as any[]).map(row => ({
+      channel: row.channel,
+      date: row.date,
+      message_count: row.message_count,
+      user_count: row.user_count,
+      users: JSON.parse(row.users),
+      created_at: row.created_at,
+    }));
   }
 
   /**

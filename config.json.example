@@ -17,8 +17,6 @@
   "messageDebounceMs": 2000,
   "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.",
   "messageHistory": {
-    "useDatabase": true,
-    "dbPath": "message-history.db",
-    "maxMessages": 1000
+    "dbPath": "message-history.db"
   }
 }
