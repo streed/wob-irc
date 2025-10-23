@@ -10,3 +10,4 @@ plugins/*.ts
 message-history.db
 message-history.db-shm
 message-history.db-wal
+test-*.js
