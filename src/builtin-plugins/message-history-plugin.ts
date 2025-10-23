@@ -229,10 +229,7 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
           const userList = users.slice(0, 10).join(', ');
           const moreUsers = users.length > 10 ? ` and ${users.length - 10} more` : '';
 
-          return `Channel statistics for ${channel}:
-- Total messages in history: ${totalMessages}
-- Unique users: ${users.length}
-- Active users: ${userList}${moreUsers}`;
+          return `${totalMessages} messages, ${users.length} users: ${userList}${moreUsers}`;
         }
 
         case 'get_user_stats': {
@@ -249,10 +246,7 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
 
           const percentage = ((userMessageCount / totalMessages) * 100).toFixed(1);
 
-          return `Statistics for ${nick} in ${channel}:
-- Messages: ${userMessageCount}
-- Percentage of channel activity: ${percentage}%
-- Channel total: ${totalMessages} messages`;
+          return `${nick}: ${userMessageCount} messages (${percentage}%)`;
         }
 
         case 'get_daily_summaries': {
@@ -269,10 +263,10 @@ export function createMessageHistoryPlugin(messageHistory: MessageHistoryDB): Pl
           const formatted = summaries.map(summary => {
             const userList = summary.users.slice(0, 5).join(', ');
             const moreUsers = summary.users.length > 5 ? ` and ${summary.users.length - 5} more` : '';
-            return `${summary.date}: ${summary.message_count} messages from ${summary.user_count} users (${userList}${moreUsers})`;
+            return `${summary.date}: ${summary.message_count} messages by ${summary.user_count} users (${userList}${moreUsers})`;
           }).join('\n');
 
-          return `Daily summaries for ${channel} (last ${summaries.length} day${summaries.length === 1 ? '' : 's'}):\n${formatted}`;
+          return formatted;
         }
 
         default:
