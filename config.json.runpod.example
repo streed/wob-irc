@@ -9,11 +9,10 @@
     "tls": false
   },
   "llm": {
-    "provider": "ollama",
-    "ollama": {
-      "host": "http://localhost:11434",
-      "model": "llama3.2",
-      "embeddingModel": "nomic-embed-text"
+    "provider": "runpod",
+    "runpod": {
+      "apiKey": "YOUR_RUNPOD_API_KEY",
+      "endpointId": "YOUR_RUNPOD_ENDPOINT_ID"
     },
     "maxToolCallRounds": 10
   },

@@ -2,7 +2,9 @@ import * as irc from 'irc-framework';
 import { BotConfig, QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
 import { MessageQueue } from './message-queue';
+import { LLMClient } from './llm-client';
 import { OllamaClient } from './ollama-client';
+import { RunpodClient } from './runpod-client';
 import { MessageHistoryDB } from './message-history-db';
 import { createMessageHistoryPlugin } from './builtin-plugins/message-history-plugin';
 
@@ -11,7 +13,7 @@ export class IRCBot {
   private config: BotConfig;
   private pluginLoader: PluginLoader;
   private messageQueue: MessageQueue;
-  private ollamaClient: OllamaClient;
+  private llmClient: LLMClient;
   private messageHistory: MessageHistoryDB;
   private joinedChannels: Set<string> = new Set();
 
@@ -22,29 +24,56 @@ export class IRCBot {
     this.client = new irc.Client();
     
     // Initialize message history with database (always)
+    // For Ollama, use the configured embedding model, for Runpod use a default
+    let ollamaHost = 'http://localhost:11434';
+    let embeddingModel = 'nomic-embed-text:v1.5';
+    
+    if (config.llm.provider === 'ollama' && config.llm.ollama) {
+      ollamaHost = config.llm.ollama.host;
+      embeddingModel = config.llm.ollama.embeddingModel || 'nomic-embed-text:v1.5';
+    }
+    
     console.log('Using database-backed message history with 30-day retention and daily summaries');
     this.messageHistory = new MessageHistoryDB(
-      this.config.ollama.host,
-      this.config.ollama.embeddingModel || 'nomic-embed-text:v1.5',
+      ollamaHost,
+      embeddingModel,
       this.config.messageHistory?.dbPath
     );
     
-    // Initialize Ollama client (without plugin loader initially)
-    this.ollamaClient = new OllamaClient(
-      this.config.ollama.host,
-      this.config.ollama.model,
-      this.config.systemPrompt || this.getDefaultSystemPrompt(),
-      this.config.ollama.maxToolCallRounds,
-      this.config.chaosMode,
-      this.messageHistory
-    );
+    // Initialize LLM client based on provider
+    if (config.llm.provider === 'ollama') {
+      if (!config.llm.ollama) {
+        throw new Error('Ollama configuration is required when provider is ollama');
+      }
+      this.llmClient = new OllamaClient(
+        config.llm.ollama.host,
+        config.llm.ollama.model,
+        this.config.systemPrompt || this.getDefaultSystemPrompt(),
+        this.config.llm.maxToolCallRounds,
+        this.config.chaosMode,
+        this.messageHistory
+      );
+    } else if (config.llm.provider === 'runpod') {
+      if (!config.llm.runpod) {
+        throw new Error('Runpod configuration is required when provider is runpod');
+      }
+      this.llmClient = new RunpodClient(
+        config.llm.runpod,
+        this.config.systemPrompt || this.getDefaultSystemPrompt(),
+        this.config.llm.maxToolCallRounds,
+        this.config.chaosMode,
+        this.messageHistory
+      );
+    } else {
+      throw new Error(`Unknown LLM provider: ${config.llm.provider}`);
+    }
     
-    // Initialize plugin loader and set OllamaClient for optimization
+    // Initialize plugin loader and set LLMClient for optimization
     this.pluginLoader = new PluginLoader();
-    this.pluginLoader.setOllamaClient(this.ollamaClient);
+    this.pluginLoader.setOllamaClient(this.llmClient);
     
-    // Now set the plugin loader in OllamaClient for tool execution
-    this.ollamaClient.setPluginLoader(this.pluginLoader);
+    // Now set the plugin loader in LLMClient for tool execution
+    this.llmClient.setPluginLoader(this.pluginLoader);
     
     // Initialize message queue
     this.messageQueue = new MessageQueue(
@@ -253,8 +282,8 @@ When users ask about past conversations, what someone said, or topics discussed,
     try {
       console.log(`Processing ${messages.length} message(s) for ${channel}`);
       
-      // Get response from Ollama
-      const response = await this.ollamaClient.processMessages(channel, messages);
+      // Get response from LLM client
+      const response = await this.llmClient.processMessages(channel, messages);
       
       if (response && response.trim()) {
         // Remove markdown formatting for IRC

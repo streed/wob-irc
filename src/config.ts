@@ -18,6 +18,8 @@ export function loadConfig(): BotConfig {
   // Fall back to environment variables
   console.log('Loading configuration from environment variables');
   
+  const provider = (process.env.LLM_PROVIDER || 'ollama') as 'ollama' | 'runpod';
+  
   const config: BotConfig = {
     irc: {
       host: process.env.IRC_HOST || 'irc.libera.chat',
@@ -28,13 +30,20 @@ export function loadConfig(): BotConfig {
       channels: (process.env.IRC_CHANNELS || '#test').split(',').map(c => c.trim()),
       tls: process.env.IRC_TLS === 'true',
     },
-    ollama: {
-      host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-      model: process.env.OLLAMA_MODEL || 'llama3.2',
+    llm: {
+      provider,
+      ollama: provider === 'ollama' ? {
+        host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+        model: process.env.OLLAMA_MODEL || 'llama3.2',
+        embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text:v1.5',
+      } : undefined,
+      runpod: provider === 'runpod' ? {
+        apiKey: process.env.RUNPOD_API_KEY || '',
+        endpointId: process.env.RUNPOD_ENDPOINT_ID || '',
+      } : undefined,
       maxToolCallRounds: process.env.MAX_TOOL_CALL_ROUNDS 
         ? parseInt(process.env.MAX_TOOL_CALL_ROUNDS) 
         : undefined,
-      embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text:v1.5',
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,

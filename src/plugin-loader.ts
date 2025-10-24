@@ -2,30 +2,30 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Plugin } from './types';
 import { sanitizeUnicode } from './unicode-sanitizer';
-import type { OllamaClient } from './ollama-client';
+import type { LLMClient } from './llm-client';
 
 export class PluginLoader {
   private plugins: Map<string, Plugin> = new Map();
   private pluginsDir: string;
-  private ollamaClient?: OllamaClient;
+  private llmClient?: LLMClient;
 
   constructor(pluginsDir: string = './plugins') {
     this.pluginsDir = path.resolve(pluginsDir);
   }
 
   /**
-   * Set the OllamaClient to use for optimizing plugin descriptions
+   * Set the LLMClient to use for optimizing plugin descriptions
    */
-  setOllamaClient(ollamaClient: OllamaClient): void {
-    this.ollamaClient = ollamaClient;
+  setOllamaClient(llmClient: LLMClient): void {
+    this.llmClient = llmClient;
   }
 
   /**
    * Optimize plugin descriptions using the LLM
    */
   private async optimizePluginDescriptions(plugin: Plugin): Promise<void> {
-    if (!this.ollamaClient) {
-      console.log(`  Skipping optimization for ${plugin.name} (no OllamaClient set)`);
+    if (!this.llmClient) {
+      console.log(`  Skipping optimization for ${plugin.name} (no LLMClient set)`);
       return;
     }
 
@@ -33,7 +33,7 @@ export class PluginLoader {
 
     try {
       // Optimize plugin description
-      plugin.optimizedDescription = await this.ollamaClient.optimizeDescription(
+      plugin.optimizedDescription = await this.llmClient.optimizeDescription(
         plugin.description,
         `This is a plugin named "${plugin.name}" with ${plugin.tools.length} tool(s)`
       );
@@ -41,7 +41,7 @@ export class PluginLoader {
       // Optimize each tool's description and parameter descriptions
       for (const tool of plugin.tools) {
         // Optimize tool description
-        tool.optimizedDescription = await this.ollamaClient.optimizeDescription(
+        tool.optimizedDescription = await this.llmClient.optimizeDescription(
           tool.description,
           `This is a tool named "${tool.name}" in the "${plugin.name}" plugin`
         );
@@ -49,7 +49,7 @@ export class PluginLoader {
         // Optimize parameter descriptions
         if (tool.parameters.properties) {
           for (const [paramName, paramSpec] of Object.entries(tool.parameters.properties)) {
-            paramSpec.optimizedDescription = await this.ollamaClient.optimizeDescription(
+            paramSpec.optimizedDescription = await this.llmClient.optimizeDescription(
               paramSpec.description,
               `This is parameter "${paramName}" for tool "${tool.name}" in plugin "${plugin.name}". Parameter type: ${paramSpec.type}`
             );
