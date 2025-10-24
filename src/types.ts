@@ -3,11 +3,13 @@
 export interface PluginTool {
   name: string;
   description: string;
+  optimizedDescription?: string; // LLM-optimized description for the current model
   parameters: {
     type: string;
     properties: Record<string, {
       type: string;
       description: string;
+      optimizedDescription?: string; // LLM-optimized description for the current model
       enum?: string[];
     }>;
     required?: string[];
@@ -17,6 +19,7 @@ export interface PluginTool {
 export interface Plugin {
   name: string;
   description: string;
+  optimizedDescription?: string; // LLM-optimized description for the current model
   tools: PluginTool[];
   execute: (toolName: string, parameters: Record<string, any>) => Promise<string>;
 }

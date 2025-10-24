@@ -7,7 +7,7 @@ export class OllamaClient {
   private ollama: Ollama;
   private model: string;
   private systemPrompt: string;
-  private pluginLoader: PluginLoader;
+  private pluginLoader?: PluginLoader;
   private conversationHistory: Map<string, any[]> = new Map();
   private maxHistoryLength: number = 20;
   private maxToolCallRounds: number = 10;
@@ -18,7 +18,6 @@ export class OllamaClient {
     host: string,
     model: string,
     systemPrompt: string,
-    pluginLoader: PluginLoader,
     maxToolCallRounds?: number,
     chaosMode?: { enabled: boolean; probability: number },
     messageHistory?: any
@@ -26,10 +25,63 @@ export class OllamaClient {
     this.ollama = new Ollama({ host });
     this.model = model;
     this.systemPrompt = systemPrompt;
-    this.pluginLoader = pluginLoader;
     this.maxToolCallRounds = maxToolCallRounds || 10;
     this.chaosMode = chaosMode;
     this.messageHistory = messageHistory;
+  }
+
+  /**
+   * Set the PluginLoader to use for tool execution
+   */
+  setPluginLoader(pluginLoader: PluginLoader): void {
+    this.pluginLoader = pluginLoader;
+  }
+
+  /**
+   * Optimize a description using the LLM for better tool calling performance.
+   * Takes a generic description and makes it more specific and actionable for the current model.
+   */
+  async optimizeDescription(originalDescription: string, context: string): Promise<string> {
+    try {
+      const prompt = `You are optimizing tool descriptions for an LLM to use effectively. 
+Your task is to take a generic description and make it more clear, specific, and actionable for an LLM that will use this tool.
+
+Context: ${context}
+
+Original description: "${originalDescription}"
+
+Provide an optimized description that:
+1. Is clear and unambiguous about what the tool/parameter does
+2. Specifies exactly when the tool/parameter should be used
+3. Includes any important constraints or requirements
+4. Uses precise language that an LLM can easily understand
+5. Is concise (preferably 1-2 sentences, max 3)
+
+Return ONLY the optimized description, nothing else.`;
+
+      const response = await this.ollama.chat({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      });
+
+      const optimized = response.message.content.trim();
+      
+      // If optimization failed or returned empty, fall back to original
+      if (!optimized || optimized.length === 0) {
+        console.warn('[Ollama] Description optimization returned empty, using original');
+        return originalDescription;
+      }
+
+      return optimized;
+    } catch (error) {
+      console.error('[Ollama] Error optimizing description, using original:', error);
+      return originalDescription;
+    }
   }
 
   async processMessages(channel: string, messages: QueuedMessage[]): Promise<string> {
@@ -54,7 +106,7 @@ export class OllamaClient {
     });
 
     // Get tools from plugins
-    const tools = this.pluginLoader.getToolsForOllama();
+    const tools = this.pluginLoader ? this.pluginLoader.getToolsForOllama() : [];
 
     try {
       let response = await this.ollama.chat({
@@ -111,6 +163,9 @@ export class OllamaClient {
 
         // Execute each tool call
         for (const toolCall of response.message.tool_calls) {
+          if (!this.pluginLoader) {
+            throw new Error('PluginLoader not set but tool calls were received');
+          }
           const toolResult = await this.pluginLoader.executeToolCall(
             toolCall.function.name,
             toolCall.function.arguments
