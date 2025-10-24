@@ -79,6 +79,8 @@ const plugin = {
             const systemPrompt = process.env.SYSTEM_PROMPT || 'You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.';
             
             // Initialize local Ollama instance for summarization
+            // Note: This is separate from the cloud Ollama instance used for web search above
+            // The local instance is used for chat/summarization capabilities
             const localOllama = new Ollama({
               host: process.env.OLLAMA_HOST || 'http://localhost:11434',
             });
@@ -101,8 +103,11 @@ const plugin = {
             return summaryResponse.message.content.trim();
           } catch (summaryError) {
             console.error('[ollama-search] Error summarizing content:', summaryError);
-            // Fallback to original response if summarization fails
-            return response;
+            // Fallback to truncation if summarization fails
+            const truncated = response.substring(0, ircLimit - 30);
+            const lastSpace = truncated.lastIndexOf(' ');
+            const finalResponse = truncated.substring(0, lastSpace > 0 ? lastSpace : truncated.length);
+            return `${finalResponse}...`;
           }
         }
         
