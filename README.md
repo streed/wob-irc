@@ -128,17 +128,40 @@ module.exports = plugin;
 ### Example Plugins
 
 See the `examples/` directory for sample plugins:
-- `weather-plugin.js` - Get weather information (mock data)
+
+**Utility Plugins:**
+- `base64-plugin.js` - Encode and decode text in base64 format
+- `hash-plugin.js` - Generate cryptographic hashes (MD5, SHA1, SHA256, SHA512)
+- `unit-converter-plugin.js` - Convert between units (temperature, length, weight, volume)
+- `url-shortener-plugin.js` - Shorten long URLs using TinyURL
+
+**Information Plugins:**
+- `weather-plugin.js` - Get weather information and forecasts using wttr.in API
 - `time-plugin.js` - Get current time in different timezones
-- `ollama-search-plugin.js` - Search the web using Ollama's cloud API (requires API key)
-- `ollama-fetch-plugin.js` - Fetch content from specific URLs using Ollama's cloud API (requires API key)
+- `currency-plugin.js` - Convert between currencies with current exchange rates
+- `dictionary-plugin.js` - Look up word definitions, pronunciations, and examples
+
+**AI-Enhanced Plugins (require API key):**
+- `ollama-search-plugin.js` - Search the web using Ollama's cloud API
+- `ollama-fetch-plugin.js` - Fetch content from specific URLs using Ollama's cloud API
 
 To use example plugins, copy them to the `plugins/` directory:
 ```bash
+# Utility plugins (no API key required)
+cp examples/base64-plugin.js plugins/
+cp examples/hash-plugin.js plugins/
+cp examples/unit-converter-plugin.js plugins/
+cp examples/url-shortener-plugin.js plugins/
+
+# Information plugins (no API key required)
 cp examples/weather-plugin.js plugins/
 cp examples/time-plugin.js plugins/
-cp examples/ollama-search-plugin.js plugins/  # Requires OLLAMA_API_KEY env variable
-cp examples/ollama-fetch-plugin.js plugins/   # Requires OLLAMA_API_KEY env variable
+cp examples/currency-plugin.js plugins/
+cp examples/dictionary-plugin.js plugins/
+
+# AI-enhanced plugins (require OLLAMA_API_KEY env variable)
+cp examples/ollama-search-plugin.js plugins/
+cp examples/ollama-fetch-plugin.js plugins/
 ```
 
 **Note**: The `ollama-search-plugin.js` and `ollama-fetch-plugin.js` require an Ollama cloud API key. Get one at https://ollama.com/settings/keys and set it as the `OLLAMA_API_KEY` environment variable.
@@ -166,6 +189,24 @@ Example interactions:
 
 <user> what time is it in Tokyo?
 <ollama-bot> Current time in Asia/Tokyo: 1/22/2025, 2:11:43 AM
+
+<user> bot, what's the definition of serendipity?
+<ollama-bot> "serendipity" /ˌserənˈdɪpɪti/ (noun): the occurrence of events by chance in a happy or beneficial way | Example: "a fortunate stroke of serendipity"
+
+<user> bot, convert 100 USD to EUR
+<ollama-bot> 100 USD = 92.50 EUR (rate: 0.925000)
+
+<user> bot, encode "hello world" in base64
+<ollama-bot> Base64 encoded: aGVsbG8gd29ybGQ=
+
+<user> bot, what's the SHA256 hash of "test"?
+<ollama-bot> SHA256 hash: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+
+<user> bot, convert 100 celsius to fahrenheit
+<ollama-bot> 100 celsius = 212 fahrenheit
+
+<user> bot, shorten this URL: https://www.example.com/very/long/url/path/to/resource
+<ollama-bot> Shortened URL: https://tinyurl.com/abc123 → https://www.example.com/very/long/url/path/to/resource
 
 <user> bot, search for latest news on artificial intelligence
 <ollama-bot> Search result for "latest news on artificial intelligence": [summarized top result from web search]

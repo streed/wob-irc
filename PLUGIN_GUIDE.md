@@ -277,7 +277,18 @@ execute: async (toolName, parameters) => {
 
 ## Plugin Ideas
 
-- **Web Search**: Search the web and return results
+**Already Implemented** (see `examples/` directory):
+- ✓ **URL Shortener**: Shorten URLs using TinyURL (`url-shortener-plugin.js`)
+- ✓ **Base64 Encoder/Decoder**: Encode and decode base64 text (`base64-plugin.js`)
+- ✓ **Hash Generator**: Generate MD5, SHA1, SHA256, SHA512 hashes (`hash-plugin.js`)
+- ✓ **Currency Converter**: Convert between currencies (`currency-plugin.js`)
+- ✓ **Dictionary**: Look up word definitions (`dictionary-plugin.js`)
+- ✓ **Unit Converter**: Convert temperature, length, weight, volume (`unit-converter-plugin.js`)
+- ✓ **Weather**: Get weather forecasts (`weather-plugin.js`)
+- ✓ **Time/Timezone**: Get time in different timezones (`time-plugin.js`)
+- ✓ **Web Search**: Search the web using Ollama API (`ollama-search-plugin.js`)
+
+**Additional Ideas**:
 - **GitHub**: Query GitHub repositories, issues, PRs
 - **Database**: Query a database and return results
 - **File Operations**: Read/write files (use with caution!)
@@ -286,6 +297,8 @@ execute: async (toolName, parameters) => {
 - **Image Generation**: Generate or manipulate images
 - **Code Execution**: Execute code safely in a sandbox
 - **Reminders**: Set and manage reminders
-- **URL Shortener**: Shorten URLs
+- **Cryptocurrency**: Get crypto prices and market data
+- **RSS Feed**: Monitor and read RSS feeds
+- **QR Code**: Generate QR codes for text/URLs
 
 Remember: Plugins have full access to the system, so be careful with what they do!
