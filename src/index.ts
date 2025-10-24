@@ -13,8 +13,15 @@ async function main() {
     console.log(`  IRC Nick: ${config.irc.nick}`);
     console.log(`  IRC Channels: ${config.irc.channels.join(', ')}`);
     console.log(`  IRC TLS: ${config.irc.tls || false}`);
-    console.log(`  Ollama Host: ${config.ollama.host}`);
-    console.log(`  Ollama Model: ${config.ollama.model}`);
+    console.log(`  LLM Provider: ${config.llm.provider}`);
+    
+    if (config.llm.provider === 'ollama' && config.llm.ollama) {
+      console.log(`  Ollama Host: ${config.llm.ollama.host}`);
+      console.log(`  Ollama Model: ${config.llm.ollama.model}`);
+    } else if (config.llm.provider === 'runpod' && config.llm.runpod) {
+      console.log(`  Runpod Endpoint ID: ${config.llm.runpod.endpointId}`);
+    }
+    
     console.log(`  Message Debounce: ${config.messageDebounceMs}ms`);
     
     if (process.env.IRC_DEBUG === 'true') {

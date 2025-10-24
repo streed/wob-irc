@@ -1,10 +1,10 @@
 # wob-irc
 
-An intelligent IRC bot powered by Ollama AI with a flexible plugin system for extending functionality.
+An intelligent IRC bot powered by LLM AI (Ollama or Runpod) with a flexible plugin system for extending functionality.
 
 ## Features
 
-- 🤖 **AI-Powered Responses**: Integrates with Ollama for natural language processing
+- 🤖 **AI-Powered Responses**: Integrates with Ollama or Runpod serverless endpoints for natural language processing
 - 🔌 **Plugin System**: Easily extend functionality with custom TypeScript/JavaScript plugins
 - 🛠️ **Tool Calling**: Plugins become available as tools that the AI can use naturally
 - 🧠 **Smart Description Optimization**: Automatically optimizes plugin descriptions at load time for the specific LLM model being used
@@ -14,11 +14,13 @@ An intelligent IRC bot powered by Ollama AI with a flexible plugin system for ex
 - 🔍 **Semantic Search**: Find messages by meaning, not just keywords, using Ollama embeddings
 - 🗄️ **Persistent Storage**: Message history survives bot restarts
 - 🔧 **Configurable**: Flexible configuration via environment variables or JSON file
+- ☁️ **Flexible LLM Providers**: Use either local Ollama or cloud-based Runpod serverless endpoints
 
 ## Prerequisites
 
 - Node.js 18+ 
-- [Ollama](https://ollama.ai/) installed and running
+- **For Ollama**: [Ollama](https://ollama.ai/) installed and running locally
+- **For Runpod**: A Runpod account with a serverless endpoint (see [Runpod Serverless](https://www.runpod.io/serverless-gpu))
 - An IRC server to connect to
 
 ## Installation
@@ -43,7 +45,7 @@ npm run build
 
 You can configure the bot using either environment variables or a `config.json` file.
 
-### Using Environment Variables
+### Using Ollama (Local)
 
 Copy the example `.env` file:
 ```bash
@@ -56,9 +58,15 @@ IRC_HOST=irc.libera.chat
 IRC_PORT=6667
 IRC_NICK=ollama-bot
 IRC_CHANNELS=#test,#mychannel
+
+# LLM Provider
+LLM_PROVIDER=ollama
+
+# Ollama Configuration
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text  # Model for semantic search
+
 MESSAGE_DEBOUNCE_MS=2000
 IRC_DEBUG=false  # Set to true for verbose IRC protocol logging
 ```
@@ -68,14 +76,74 @@ IRC_DEBUG=false  # Set to true for verbose IRC protocol logging
 ollama pull nomic-embed-text
 ```
 
+### Using Runpod Serverless (Cloud)
+
+For Runpod configuration, edit `.env`:
+```env
+IRC_HOST=irc.libera.chat
+IRC_PORT=6667
+IRC_NICK=ollama-bot
+IRC_CHANNELS=#test,#mychannel
+
+# LLM Provider
+LLM_PROVIDER=runpod
+
+# Runpod Configuration
+RUNPOD_API_KEY=your-api-key-here
+RUNPOD_ENDPOINT_ID=your-endpoint-id-here
+
+MESSAGE_DEBOUNCE_MS=2000
+```
+
+To use Runpod:
+1. Create an account at [Runpod.io](https://www.runpod.io/)
+2. Set up a serverless endpoint with your preferred LLM model
+3. Get your API key from the Runpod dashboard
+4. Copy your endpoint ID from your serverless endpoint settings
+
+**Note**: When using Runpod, message history and semantic search features will use a local Ollama instance for embeddings. If you don't have Ollama installed, these features will be limited.
+
 ### Using config.json
 
 Alternatively, copy the example config:
 ```bash
+# For Ollama
 cp config.json.example config.json
+
+# For Runpod
+cp config.json.runpod.example config.json
 ```
 
 Edit `config.json` with your settings.
+
+**Ollama config.json example:**
+```json
+{
+  "llm": {
+    "provider": "ollama",
+    "ollama": {
+      "host": "http://localhost:11434",
+      "model": "llama3.2",
+      "embeddingModel": "nomic-embed-text"
+    },
+    "maxToolCallRounds": 10
+  }
+}
+```
+
+**Runpod config.json example:**
+```json
+{
+  "llm": {
+    "provider": "runpod",
+    "runpod": {
+      "apiKey": "YOUR_RUNPOD_API_KEY",
+      "endpointId": "YOUR_RUNPOD_ENDPOINT_ID"
+    },
+    "maxToolCallRounds": 10
+  }
+}
+```
 
 ## Running the Bot
 
