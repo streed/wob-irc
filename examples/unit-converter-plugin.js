@@ -37,33 +37,37 @@ const plugin = {
       
       try {
         let result;
-        
+        let precision;
         // Temperature conversions
         if (['celsius', 'fahrenheit', 'kelvin', 'c', 'f', 'k'].includes(from) &&
             ['celsius', 'fahrenheit', 'kelvin', 'c', 'f', 'k'].includes(to)) {
           result = convertTemperature(value, from, to);
+          precision = 2;
         }
         // Length conversions
         else if (['meters', 'feet', 'miles', 'kilometers', 'km', 'm', 'ft', 'mi'].includes(from) &&
                  ['meters', 'feet', 'miles', 'kilometers', 'km', 'm', 'ft', 'mi'].includes(to)) {
           result = convertLength(value, from, to);
+          precision = 4;
         }
         // Weight conversions
         else if (['kilograms', 'pounds', 'ounces', 'kg', 'lbs', 'oz', 'grams', 'g'].includes(from) &&
                  ['kilograms', 'pounds', 'ounces', 'kg', 'lbs', 'oz', 'grams', 'g'].includes(to)) {
           result = convertWeight(value, from, to);
+          precision = 4;
         }
         // Volume conversions
         else if (['liters', 'gallons', 'milliliters', 'l', 'gal', 'ml'].includes(from) &&
                  ['liters', 'gallons', 'milliliters', 'l', 'gal', 'ml'].includes(to)) {
           result = convertVolume(value, from, to);
+          precision = 3;
         }
         else {
           return `Error: Cannot convert from ${from_unit} to ${to_unit}. Unsupported unit or incompatible unit types.`;
         }
         
         // Format the result
-        return `${value} ${from_unit} = ${result.toFixed(4)} ${to_unit}`;
+        return `${value} ${from_unit} = ${result.toFixed(precision)} ${to_unit}`;
         
       } catch (error) {
         console.error('[unit-converter] Error converting units:', error);
