@@ -29,20 +29,22 @@ export class IRCBot {
       this.config.messageHistory?.dbPath
     );
     
-    // Initialize plugin loader and register built-in plugins
-    this.pluginLoader = new PluginLoader();
-    this.pluginLoader.registerBuiltinPlugin(createMessageHistoryPlugin(this.messageHistory));
-    
-    // Initialize Ollama client
+    // Initialize Ollama client (without plugin loader initially)
     this.ollamaClient = new OllamaClient(
       this.config.ollama.host,
       this.config.ollama.model,
       this.config.systemPrompt || this.getDefaultSystemPrompt(),
-      this.pluginLoader,
       this.config.ollama.maxToolCallRounds,
       this.config.chaosMode,
       this.messageHistory
     );
+    
+    // Initialize plugin loader and set OllamaClient for optimization
+    this.pluginLoader = new PluginLoader();
+    this.pluginLoader.setOllamaClient(this.ollamaClient);
+    
+    // Now set the plugin loader in OllamaClient for tool execution
+    this.ollamaClient.setPluginLoader(this.pluginLoader);
     
     // Initialize message queue
     this.messageQueue = new MessageQueue(
@@ -75,7 +77,10 @@ When users ask about past conversations, what someone said, or topics discussed,
   }
 
   async start(): Promise<void> {
-    // Load plugins first
+    // Register built-in plugins (with optimization)
+    await this.pluginLoader.registerBuiltinPlugin(createMessageHistoryPlugin(this.messageHistory));
+    
+    // Load plugins (with optimization)
     await this.pluginLoader.loadPlugins();
     
     // Setup event handlers first, before connecting

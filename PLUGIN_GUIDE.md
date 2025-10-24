@@ -179,11 +179,37 @@ export default plugin;
 
 1. **Descriptive Names**: Use clear, descriptive names for tools and parameters
 2. **Good Descriptions**: Write detailed descriptions - they help the AI understand when to use your tool
+   - **Note**: The bot automatically optimizes your descriptions for the specific LLM being used when plugins are loaded. The original descriptions are preserved, but the LLM sees optimized versions tailored to its understanding.
 3. **Error Handling**: Always handle errors gracefully and return user-friendly messages
 4. **Validation**: Validate parameters before using them
 5. **Async Operations**: Use async/await for any I/O operations
 6. **Single Responsibility**: Each tool should do one thing well
 7. **Return Strings**: Always return string results that are meaningful to users
+
+## Automatic Description Optimization
+
+When the bot starts, it uses the configured LLM to optimize all plugin, tool, and parameter descriptions. This happens automatically and you don't need to do anything special - just write clear, descriptive descriptions in your plugin code.
+
+**What gets optimized:**
+- Plugin descriptions
+- Tool descriptions
+- Parameter descriptions
+
+**Why this matters:**
+- The LLM can better understand when and how to use your tools
+- Descriptions are tailored to the specific model being used (e.g., llama3.2 vs qwen2.5)
+- Improves tool calling accuracy and reduces errors
+
+**Example:**
+```javascript
+// Your original description:
+description: 'Does something useful'
+
+// After optimization (example):
+optimizedDescription: 'Performs a specific operation that processes input data and returns formatted results. Use this tool when the user needs to transform or analyze data.'
+```
+
+The optimization process happens at plugin load time, so there's a brief delay during startup while descriptions are being optimized. You'll see console messages indicating when each plugin is being optimized.
 
 ## Testing Your Plugin
 

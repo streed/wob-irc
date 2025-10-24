@@ -7,6 +7,7 @@ An intelligent IRC bot powered by Ollama AI with a flexible plugin system for ex
 - 🤖 **AI-Powered Responses**: Integrates with Ollama for natural language processing
 - 🔌 **Plugin System**: Easily extend functionality with custom TypeScript/JavaScript plugins
 - 🛠️ **Tool Calling**: Plugins become available as tools that the AI can use naturally
+- 🧠 **Smart Description Optimization**: Automatically optimizes plugin descriptions at load time for the specific LLM model being used
 - ⏱️ **Message Debouncing**: Intelligent message queue system for efficient processing
 - 💬 **Context Awareness**: Maintains conversation history per channel
 - 📜 **Message History**: SQLite-backed persistent storage with vector embeddings
@@ -178,11 +179,13 @@ cp examples/ollama-fetch-plugin.js plugins/
 
 ## How It Works
 
-1. **Message Collection**: When users mention the bot or send direct messages, messages are added to a debounced queue
-2. **Queue Processing**: After the debounce period (default 2 seconds), queued messages are processed together
-3. **AI Processing**: Messages are sent to Ollama with context and available tools
-4. **Tool Execution**: If the AI decides to use a tool, the plugin's execute function is called
-5. **Response**: The AI's response (potentially enriched with tool results) is sent back to IRC
+1. **Plugin Loading**: At startup, plugins are loaded from the `plugins/` directory
+2. **Description Optimization**: Each plugin's descriptions (plugin, tools, and parameters) are automatically optimized by the LLM for better tool calling performance. This tailors the descriptions to the specific model being used (e.g., llama3.2, qwen2.5, etc.)
+3. **Message Collection**: When users mention the bot or send direct messages, messages are added to a debounced queue
+4. **Queue Processing**: After the debounce period (default 2 seconds), queued messages are processed together
+5. **AI Processing**: Messages are sent to Ollama with context and available tools (using optimized descriptions)
+6. **Tool Execution**: If the AI decides to use a tool, the plugin's execute function is called
+7. **Response**: The AI's response (potentially enriched with tool results) is sent back to IRC
 
 ## Bot Interaction
 
