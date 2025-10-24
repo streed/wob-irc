@@ -103,6 +103,8 @@ To use Runpod:
 
 **Note**: When using Runpod, message history and semantic search features will use a local Ollama instance for embeddings. If you don't have Ollama installed, these features will be limited.
 
+**For detailed Runpod setup instructions, see [RUNPOD_GUIDE.md](RUNPOD_GUIDE.md).**
+
 ### Using config.json
 
 Alternatively, copy the example config:
