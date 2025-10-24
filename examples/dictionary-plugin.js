@@ -24,9 +24,13 @@ const plugin = {
     if (toolName === 'define_word') {
       const word = parameters.word.toLowerCase().trim();
       
-      // Validate word (should be alphabetic)
-      if (!/^[a-z]+$/.test(word)) {
-        return 'Error: Word should contain only letters (a-z)';
+      // Validate word (should not be empty and contain only letters, hyphens, or apostrophes)
+      if (!word || word.length === 0) {
+        return 'Error: Word cannot be empty';
+      }
+      
+      if (!/^[a-zA-Z'-]+$/.test(word)) {
+        return 'Error: Word should contain only letters, hyphens, or apostrophes';
       }
       
       try {

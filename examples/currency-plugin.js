@@ -33,8 +33,8 @@ const plugin = {
       const { amount, from, to } = parameters;
       
       // Validate amount
-      if (amount <= 0) {
-        return 'Error: Amount must be greater than 0';
+      if (amount < 0) {
+        return 'Error: Amount cannot be negative';
       }
       
       // Normalize currency codes to uppercase

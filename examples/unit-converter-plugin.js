@@ -63,8 +63,7 @@ const plugin = {
         }
         
         // Format the result
-        const formattedResult = Number(result.toFixed(4));
-        return `${value} ${from_unit} = ${formattedResult} ${to_unit}`;
+        return `${value} ${from_unit} = ${result.toFixed(4)} ${to_unit}`;
         
       } catch (error) {
         console.error('[unit-converter] Error converting units:', error);
