@@ -20,6 +20,36 @@ Encode and decode text using base64 encoding.
 <bot> Base64 decoded: hello world
 ```
 
+### calculator-plugin.js
+Evaluate mathematical expressions and perform calculations.
+
+**Tools:**
+- `calculate` - Evaluate math expressions with support for basic arithmetic, trigonometry, and common functions
+
+**Example:**
+```
+<user> bot, calculate 2 + 2 * 3
+<bot> 2 + 2 * 3 = 8
+
+<user> bot, what's the square root of 144?
+<bot> sqrt(144) = 12
+```
+
+### color-converter-plugin.js
+Convert between different color formats (HEX, RGB, HSL).
+
+**Tools:**
+- `convert_color` - Convert colors between HEX, RGB, and HSL formats
+
+**Example:**
+```
+<user> bot, convert #FF5733 to RGB
+<bot> #FF5733 → rgb(255, 87, 51)
+
+<user> bot, convert rgb(255,87,51) to HSL
+<bot> rgb(255,87,51) → hsl(11, 100%, 60%)
+```
+
 ### hash-plugin.js
 Generate cryptographic hashes for text.
 
@@ -47,7 +77,7 @@ Convert between common units of measurement.
 **Example:**
 ```
 <user> bot, convert 100 celsius to fahrenheit
-<bot> 100 celsius = 212 fahrenheit
+<bot> 100 celsius = 212.0000 fahrenheit
 ```
 
 ### url-shortener-plugin.js
@@ -62,7 +92,54 @@ Shorten long URLs using TinyURL.
 <bot> Shortened URL: https://tinyurl.com/abc123 → https://www.example.com/very/long/url
 ```
 
+### uuid-generator-plugin.js
+Generate UUIDs (Universally Unique Identifiers).
+
+**Tools:**
+- `generate_uuid` - Generate UUID v4 (random)
+
+**Example:**
+```
+<user> bot, generate a UUID
+<bot> UUID v4: 0d149f62-410a-4315-9607-c27484772812
+
+<user> bot, generate 3 UUIDs
+<bot> Generated 3 UUID v4:
+1. 030ef728-63c1-4535-b687-7c02102e7c7b
+2. 26bca478-f6e7-4e5d-ab93-3c4399b19d7a
+3. 79f20ce6-ded4-4c9c-9cb3-c300b5202d17
+```
+
+### password-generator-plugin.js
+Generate secure random passwords.
+
+**Tools:**
+- `generate_password` - Generate password with customizable length and character types
+
+**Example:**
+```
+<user> bot, generate a password
+<bot> Generated password (16 chars, uppercase+lowercase+numbers+symbols):
+}Gxl#P6f],{8a!2@
+
+<user> bot, generate a 12 character password without symbols
+<bot> Generated password (12 chars, uppercase+lowercase+numbers):
+6UJOMTnXe1g6
+```
+
 ## Information Plugins
+
+### ip-lookup-plugin.js
+Look up information about an IP address.
+
+**Tools:**
+- `lookup_ip` - Get location, ISP, and other details for an IP address
+
+**Example:**
+```
+<user> bot, lookup IP 8.8.8.8
+<bot> IP: 8.8.8.8 | Location: Mountain View, California, United States | ISP: Google LLC
+```
 
 ### weather-plugin.js
 Get weather information and forecasts using the wttr.in API.
