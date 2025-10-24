@@ -128,17 +128,50 @@ module.exports = plugin;
 ### Example Plugins
 
 See the `examples/` directory for sample plugins:
-- `weather-plugin.js` - Get weather information (mock data)
+
+**Utility Plugins:**
+- `base64-plugin.js` - Encode and decode text in base64 format
+- `calculator-plugin.js` - Evaluate mathematical expressions and perform calculations
+- `color-converter-plugin.js` - Convert between color formats (HEX, RGB, HSL)
+- `hash-plugin.js` - Generate cryptographic hashes (MD5, SHA1, SHA256, SHA512)
+- `password-generator-plugin.js` - Generate secure random passwords
+- `unit-converter-plugin.js` - Convert between units (temperature, length, weight, volume)
+- `url-shortener-plugin.js` - Shorten long URLs using TinyURL
+- `uuid-generator-plugin.js` - Generate UUIDs (v4)
+
+**Information Plugins:**
+- `currency-plugin.js` - Convert between currencies with current exchange rates
+- `dictionary-plugin.js` - Look up word definitions, pronunciations, and examples
+- `ip-lookup-plugin.js` - Look up IP address information (location, ISP, etc.)
 - `time-plugin.js` - Get current time in different timezones
-- `ollama-search-plugin.js` - Search the web using Ollama's cloud API (requires API key)
-- `ollama-fetch-plugin.js` - Fetch content from specific URLs using Ollama's cloud API (requires API key)
+- `weather-plugin.js` - Get weather information and forecasts using wttr.in API
+
+**AI-Enhanced Plugins (require API key):**
+- `ollama-search-plugin.js` - Search the web using Ollama's cloud API
+- `ollama-fetch-plugin.js` - Fetch content from specific URLs using Ollama's cloud API
 
 To use example plugins, copy them to the `plugins/` directory:
 ```bash
-cp examples/weather-plugin.js plugins/
+# Utility plugins (no API key required)
+cp examples/base64-plugin.js plugins/
+cp examples/calculator-plugin.js plugins/
+cp examples/color-converter-plugin.js plugins/
+cp examples/hash-plugin.js plugins/
+cp examples/password-generator-plugin.js plugins/
+cp examples/unit-converter-plugin.js plugins/
+cp examples/url-shortener-plugin.js plugins/
+cp examples/uuid-generator-plugin.js plugins/
+
+# Information plugins (no API key required)
+cp examples/currency-plugin.js plugins/
+cp examples/dictionary-plugin.js plugins/
+cp examples/ip-lookup-plugin.js plugins/
 cp examples/time-plugin.js plugins/
-cp examples/ollama-search-plugin.js plugins/  # Requires OLLAMA_API_KEY env variable
-cp examples/ollama-fetch-plugin.js plugins/   # Requires OLLAMA_API_KEY env variable
+cp examples/weather-plugin.js plugins/
+
+# AI-enhanced plugins (require OLLAMA_API_KEY env variable)
+cp examples/ollama-search-plugin.js plugins/
+cp examples/ollama-fetch-plugin.js plugins/
 ```
 
 **Note**: The `ollama-search-plugin.js` and `ollama-fetch-plugin.js` require an Ollama cloud API key. Get one at https://ollama.com/settings/keys and set it as the `OLLAMA_API_KEY` environment variable.
@@ -166,6 +199,43 @@ Example interactions:
 
 <user> what time is it in Tokyo?
 <ollama-bot> Current time in Asia/Tokyo: 1/22/2025, 2:11:43 AM
+
+<user> bot, what's the definition of serendipity?
+<ollama-bot> "serendipity" /ˌserənˈdɪpɪti/ (noun): the occurrence of events by chance in a happy or beneficial way | Example: "a fortunate stroke of serendipity"
+
+<user> bot, convert 100 USD to EUR
+<ollama-bot> 100 USD = 92.50 EUR (rate: 0.925000)
+
+<user> bot, encode "hello world" in base64
+<ollama-bot> Base64 encoded: aGVsbG8gd29ybGQ=
+
+<user> bot, calculate 2 + 2 * 3
+<ollama-bot> 2 + 2 * 3 = 8
+
+<user> bot, what's the square root of 144?
+<ollama-bot> sqrt(144) = 12
+
+<user> bot, what's the SHA256 hash of "test"?
+<ollama-bot> SHA256 hash: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+
+<user> bot, convert #FF5733 to RGB
+<ollama-bot> #FF5733 → rgb(255, 87, 51)
+
+<user> bot, generate a UUID
+<ollama-bot> UUID v4: 0d149f62-410a-4315-9607-c27484772812
+
+<user> bot, generate a password
+<ollama-bot> Generated password (16 chars, uppercase+lowercase+numbers+symbols):
+}Gxl#P6f],{8a!2@
+
+<user> bot, convert 100 celsius to fahrenheit
+<ollama-bot> 100 celsius = 212.0000 fahrenheit
+
+<user> bot, lookup IP 8.8.8.8
+<ollama-bot> IP: 8.8.8.8 | Location: Mountain View, California, United States | ISP: Google LLC
+
+<user> bot, shorten this URL: https://www.example.com/very/long/url/path/to/resource
+<ollama-bot> Shortened URL: https://tinyurl.com/abc123 → https://www.example.com/very/long/url/path/to/resource
 
 <user> bot, search for latest news on artificial intelligence
 <ollama-bot> Search result for "latest news on artificial intelligence": [summarized top result from web search]
