@@ -69,19 +69,44 @@ const plugin = {
         // IRC typically has ~400 char limit as used in the bot
         const ircLimit = 350; // Leave some buffer
         
-        // If content is already short enough for IRC, return it
-        if (content.length <= ircLimit) {
-          return `Search result for "${query}": ${content}`;
+        // Build the initial response
+        const response = `Search result for "${query}": ${content}`;
+        
+        // If content is too long, use Ollama to summarize it
+        if (response.length > ircLimit) {
+          try {
+            // Get the system prompt from environment or use default
+            const systemPrompt = process.env.SYSTEM_PROMPT || 'You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.';
+            
+            // Initialize local Ollama instance for summarization
+            const localOllama = new Ollama({
+              host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+            });
+            
+            // Ask Ollama to summarize in the voice of the system prompt
+            const summaryResponse = await localOllama.chat({
+              model: process.env.OLLAMA_MODEL || 'llama3.2',
+              messages: [
+                {
+                  role: 'system',
+                  content: systemPrompt,
+                },
+                {
+                  role: 'user',
+                  content: `Please summarize the following search result in under ${ircLimit} characters, maintaining the style and voice from your system prompt. Include that this is a search result for "${query}".\n\nContent: ${content}`,
+                },
+              ],
+            });
+            
+            return summaryResponse.message.content.trim();
+          } catch (summaryError) {
+            console.error('[ollama-search] Error summarizing content:', summaryError);
+            // Fallback to original response if summarization fails
+            return response;
+          }
         }
         
-        // Content is too long, truncate with ellipsis
-        // Note: We could use a local Ollama model to summarize, but that would
-        // require a separate connection to the local Ollama instance
-        const truncated = content.substring(0, ircLimit - 30);
-        const lastSpace = truncated.lastIndexOf(' ');
-        const finalContent = truncated.substring(0, lastSpace > 0 ? lastSpace : truncated.length);
-        
-        return `Search result for "${query}": ${finalContent}...`;
+        return response;
       } catch (error) {
         console.error('[ollama-search] Error performing search:', error);
         
