@@ -119,8 +119,8 @@ export class OllamaClient {
     const tools = this.pluginLoader ? this.pluginLoader.getToolsForOllama() : [];
 
     try {
-      // Prepare a trimmed copy of the history that fits within token limit
-      let requestHistory = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
+      // Prepare a compacted copy of the history that fits within token limit
+      let requestHistory = await this.compactHistoryToTokenLimit(history, this.maxContextTokens);
       // Log the user/assistant turns being sent
       this.logRequestHistory('Initial request', requestHistory);
 
@@ -212,8 +212,8 @@ export class OllamaClient {
           });
         }
 
-        // Prepare trimmed history again for next round
-        requestHistory = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
+        // Prepare compacted history again for next round
+        requestHistory = await this.compactHistoryToTokenLimit(history, this.maxContextTokens);
         this.logRequestHistory(`Tool round ${toolCallRound} request`, requestHistory);
 
         // Get next response from the model
@@ -246,7 +246,7 @@ export class OllamaClient {
         });
         
         // Get final response without allowing more tool calls
-        requestHistory = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
+        requestHistory = await this.compactHistoryToTokenLimit(history, this.maxContextTokens);
         this.logRequestHistory('Forced final request', requestHistory);
         response = await this.ollama.chat({
           model: this.model,
@@ -273,8 +273,8 @@ export class OllamaClient {
       // Prune assistant tool-call messages to keep only the last one
       history = this.pruneAssistantToolMessages(history);
 
-      // Trim history using token limit (and fallback to max message count)
-      history = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
+      // Compact history using token limit (and fallback to max message count)
+      history = await this.compactHistoryToTokenLimit(history, this.maxContextTokens);
       if (history.length > this.maxHistoryLength) {
         const systemMsg = history[0];
         const recentMessages = history.slice(-this.maxHistoryLength + 1);
@@ -312,6 +312,112 @@ export class OllamaClient {
     if (!text) return 0;
     // Rough heuristic: ~4 chars/token
     return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Compact conversation history to fit within a token budget while preserving relevance.
+   * Strategy:
+   * - Always keep the original system prompt.
+   * - Keep recent turns intact up to ~60% of the token budget (or at least a few messages).
+   * - Summarize the older portion into a concise system-context message capturing key facts/decisions.
+   * - Fall back to hard trimming if still above budget.
+   */
+  private async compactHistoryToTokenLimit(messages: any[], maxTokens: number): Promise<any[]> {
+    if (!messages || messages.length === 0) return [];
+    if (messages.length === 1) return messages;
+
+    const system = messages[0];
+    const rest = messages.slice(1);
+
+    // Quick path: if already within budget, no changes
+    const totalTokens = (messages || []).reduce((sum, m) => sum + this.estimateMessageTokens(m), 0);
+    if (totalTokens <= maxTokens) return messages;
+
+    // Reserve ~60% of budget for most recent context; always keep at least last 6 messages if possible
+    const budgetForRecent = Math.max(Math.floor(maxTokens * 0.6), 1);
+    const minRecentCount = 6;
+
+    // Accumulate recent messages from the end under the recent budget
+    const recent: any[] = [];
+    let recentTokens = this.estimateMessageTokens(system);
+    for (let i = rest.length - 1; i >= 0; i--) {
+      const msg = rest[i];
+      const cost = this.estimateMessageTokens(msg);
+      // Always allow at least minRecentCount even if exceeding budgetForRecent slightly
+      const forceKeep = recent.length < minRecentCount;
+      if (!forceKeep && recentTokens + cost > budgetForRecent) break;
+      recent.push(msg);
+      recentTokens += cost;
+    }
+    recent.reverse();
+
+    // Older portion to summarize
+    const olderCount = rest.length - recent.length;
+    const older = olderCount > 0 ? rest.slice(0, olderCount) : [];
+
+    // If there's nothing older, fallback to regular trimming by budget
+    if (older.length === 0) {
+      return this.trimHistoryToTokenLimit(messages, maxTokens);
+    }
+
+    // Build a compact transcript for older messages (cap each line to avoid huge prompts)
+    const line = (m: any): string => {
+      const role = m?.role || 'unknown';
+      const raw = String(m?.content || '');
+      const capped = raw.length > 600 ? raw.slice(0, 600) + '…' : raw;
+      return `${role}: ${capped}`;
+    };
+    const transcript = older.map(line).join('\n');
+
+    // Ask the model to summarize older context into a short, plain-text memory
+    let summaryContent = '';
+    try {
+      const summarizerSystem = [
+        'You are an assistant compressing earlier conversation context for an IRC bot.',
+        'Summarize the transcript into a short, plain-text memory that preserves:',
+        '- Key facts, constraints, decisions, numbers, and names',
+        '- User intents, tasks in progress, and important outcomes',
+        '- Avoid quotes, lists, or markdown; use 1–2 concise sentences',
+      ].join('\n');
+
+      const response = await this.ollama.chat({
+        model: this.model,
+        messages: [
+          { role: 'system', content: summarizerSystem },
+          { role: 'user', content: `Summarize this earlier context:\n\n${transcript}` },
+        ],
+      });
+      summaryContent = String(response?.message?.content || '').trim();
+      if (!summaryContent) {
+        // Fallback to simple truncation of the transcript
+        summaryContent = this.truncate(transcript, 600);
+      }
+    } catch (e) {
+      // Fallback: minimal truncation if summarization fails
+      summaryContent = this.truncate(transcript, 600);
+    }
+
+    const summaryMsg = {
+      role: 'system',
+      content: `Conversation summary so far: ${summaryContent}`,
+    };
+
+    // Compose: system + summary + recent; then enforce final budget strictly
+    let composed = [system, summaryMsg, ...recent];
+    const composedTokens = composed.reduce((sum, m) => sum + this.estimateMessageTokens(m), 0);
+    if (composedTokens <= maxTokens) return composed;
+
+    // If still too large, shrink the summary first using character-bound summarizer
+    try {
+      const targetChars = 300;
+      const shrunk = await this.summarizeText(summaryMsg.content, targetChars);
+      composed = [system, { role: 'system', content: shrunk }, ...recent];
+    } catch (_) {
+      // ignore; proceed to hard trim
+    }
+
+    // Final hard trim as a guard
+    return this.trimHistoryToTokenLimit(composed, maxTokens);
   }
 
   private estimateMessageTokens(msg: any): number {
