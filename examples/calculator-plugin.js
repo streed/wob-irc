@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'calculator',
-  description: 'Evaluate mathematical expressions and perform calculations. Supports basic arithmetic, trigonometry, logarithms, and common math functions.',
+  description: 'Evaluate safe mathematical expressions. Use for arithmetic and common math functions; only math tokens allowed; never execute code.',
   tools: [
     {
       name: 'calculate',
@@ -13,7 +13,7 @@ const plugin = {
         properties: {
           expression: {
             type: 'string',
-            description: 'The mathematical expression to evaluate (e.g., "2 + 2", "sqrt(16)", "sin(3.14159/2)")',
+            description: 'Mathematical expression (max 500 chars). Allowed: digits, + - * / % **, parentheses, decimals, and functions sqrt|sin|cos|tan|log|ln|abs|floor|ceil|round|min|max|pow|exp|PI|E.',
           },
         },
         required: ['expression'],

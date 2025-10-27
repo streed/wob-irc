@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const plugin = {
   name: 'hash',
-  description: 'Generate cryptographic hashes (MD5, SHA1, SHA256, SHA512) for text. Useful for verifying data integrity or generating checksums.',
+  description: 'Generate MD5/SHA1/SHA256/SHA512 hashes for text. Use for checksums and integrity verification; input is plain text.',
   tools: [
     {
       name: 'generate_hash',
@@ -15,11 +15,11 @@ const plugin = {
         properties: {
           text: {
             type: 'string',
-            description: 'The text to hash',
+            description: 'Plain text to hash (UTF-8).',
           },
           algorithm: {
             type: 'string',
-            description: 'The hash algorithm to use',
+            description: 'Hash algorithm. Must be one of: md5, sha1, sha256, sha512.',
             enum: ['md5', 'sha1', 'sha256', 'sha512'],
           },
         },

@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'time',
-  description: 'Get current time and perform timezone conversions',
+  description: 'Get current time or convert timezones. Use when asked for the time here/there; accept IANA timezone names (e.g., America/New_York).',
   tools: [
     {
       name: 'get_current_time',

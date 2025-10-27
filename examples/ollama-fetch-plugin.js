@@ -10,7 +10,7 @@ const { Ollama } = require('ollama');
 
 const plugin = {
   name: 'ollama-fetch',
-  description: 'Fetch content from a specific URL using Ollama',
+  description: 'Fetch content from a specific URL via Ollama. Use when asked about the contents of a particular web page; return a concise extract.',
   tools: [
     {
       name: 'web_fetch',
@@ -20,7 +20,7 @@ const plugin = {
         properties: {
           url: {
             type: 'string',
-            description: 'The full URL to fetch content from (e.g., "https://example.com/article")',
+            description: 'Absolute URL to fetch (must start with http:// or https://).',
           },
         },
         required: ['url'],

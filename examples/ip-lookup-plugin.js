@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'ip-lookup',
-  description: 'Look up information about an IP address including location, ISP, and organization. Uses ip-api.com free API.',
+  description: 'Look up IP address info (location, ISP, organization). Use for IPv4/IPv6 queries; validate input; returns concise summary.',
   tools: [
     {
       name: 'lookup_ip',
@@ -13,7 +13,7 @@ const plugin = {
         properties: {
           ip: {
             type: 'string',
-            description: 'The IP address to look up (IPv4 or IPv6). If not provided, looks up the current IP.',
+            description: 'IP address to look up (IPv4 dotted-decimal or IPv6). Optional: if omitted, looks up the caller IP.',
           },
         },
         required: [],

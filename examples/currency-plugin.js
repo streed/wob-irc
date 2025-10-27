@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'currency',
-  description: 'Convert amounts between different currencies using current exchange rates. Supports major world currencies.',
+  description: 'Convert amounts between currencies using live rates. Use when asked “X in Y”; require ISO currency codes (e.g., USD, EUR).',
   tools: [
     {
       name: 'convert_currency',
@@ -13,15 +13,15 @@ const plugin = {
         properties: {
           amount: {
             type: 'number',
-            description: 'The amount to convert',
+            description: 'Amount to convert (> 0). Decimals allowed.',
           },
           from: {
             type: 'string',
-            description: 'The source currency code (e.g., USD, EUR, GBP, JPY)',
+            description: 'Source currency code (ISO 4217, 3 letters, uppercase e.g., USD, EUR, JPY).',
           },
           to: {
             type: 'string',
-            description: 'The target currency code (e.g., USD, EUR, GBP, JPY)',
+            description: 'Target currency code (ISO 4217, 3 letters, uppercase e.g., USD, EUR, JPY).',
           },
         },
         required: ['amount', 'from', 'to'],

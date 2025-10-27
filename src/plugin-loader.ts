@@ -1,66 +1,14 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { Plugin } from './types';
-import { sanitizeUnicode } from './unicode-sanitizer';
-import type { OllamaClient } from './ollama-client';
+import * as fs from "fs";
+import * as path from "path";
+import { Plugin } from "./types";
+import { sanitizeUnicode } from "./unicode-sanitizer";
 
 export class PluginLoader {
   private plugins: Map<string, Plugin> = new Map();
   private pluginsDir: string;
-  private ollamaClient?: OllamaClient;
 
-  constructor(pluginsDir: string = './plugins') {
+  constructor(pluginsDir: string = "./plugins") {
     this.pluginsDir = path.resolve(pluginsDir);
-  }
-
-  /**
-   * Set the OllamaClient to use for optimizing plugin descriptions
-   */
-  setOllamaClient(ollamaClient: OllamaClient): void {
-    this.ollamaClient = ollamaClient;
-  }
-
-  /**
-   * Optimize plugin descriptions using the LLM
-   */
-  private async optimizePluginDescriptions(plugin: Plugin): Promise<void> {
-    if (!this.ollamaClient) {
-      console.log(`  Skipping optimization for ${plugin.name} (no OllamaClient set)`);
-      return;
-    }
-
-    console.log(`  Optimizing descriptions for plugin: ${plugin.name}`);
-
-    try {
-      // Optimize plugin description
-      plugin.optimizedDescription = await this.ollamaClient.optimizeDescription(
-        plugin.description,
-        `This is a plugin named "${plugin.name}" with ${plugin.tools.length} tool(s)`
-      );
-
-      // Optimize each tool's description and parameter descriptions
-      for (const tool of plugin.tools) {
-        // Optimize tool description
-        tool.optimizedDescription = await this.ollamaClient.optimizeDescription(
-          tool.description,
-          `This is a tool named "${tool.name}" in the "${plugin.name}" plugin`
-        );
-
-        // Optimize parameter descriptions
-        if (tool.parameters.properties) {
-          for (const [paramName, paramSpec] of Object.entries(tool.parameters.properties)) {
-            paramSpec.optimizedDescription = await this.ollamaClient.optimizeDescription(
-              paramSpec.description,
-              `This is parameter "${paramName}" for tool "${tool.name}" in plugin "${plugin.name}". Parameter type: ${paramSpec.type}`
-            );
-          }
-        }
-      }
-
-      console.log(`  ✓ Optimized descriptions for ${plugin.name}`);
-    } catch (error) {
-      console.error(`  ✗ Error optimizing descriptions for ${plugin.name}:`, error);
-    }
   }
 
   /**
@@ -69,10 +17,9 @@ export class PluginLoader {
   async registerBuiltinPlugin(plugin: Plugin): Promise<void> {
     if (this.isValidPlugin(plugin)) {
       this.plugins.set(plugin.name, plugin);
-      console.log(`✓ Registered built-in plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`);
-      
-      // Optimize descriptions if OllamaClient is available
-      await this.optimizePluginDescriptions(plugin);
+      console.log(
+        `✓ Registered built-in plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`,
+      );
     } else {
       console.warn(`✗ Invalid built-in plugin format`);
     }
@@ -80,31 +27,30 @@ export class PluginLoader {
 
   async loadPlugins(): Promise<void> {
     console.log(`Loading plugins from: ${this.pluginsDir}`);
-    
+
     if (!fs.existsSync(this.pluginsDir)) {
-      console.log('Plugins directory does not exist, creating it...');
+      console.log("Plugins directory does not exist, creating it...");
       fs.mkdirSync(this.pluginsDir, { recursive: true });
       return;
     }
 
     const files = fs.readdirSync(this.pluginsDir);
-    
+
     for (const file of files) {
-      if (file.endsWith('.js') || file.endsWith('.ts')) {
+      if (file.endsWith(".js") || file.endsWith(".ts")) {
         try {
           const pluginPath = path.join(this.pluginsDir, file);
           console.log(`Loading plugin: ${file}`);
-          
+
           // Dynamic import for ESM/CJS compatibility
           const module = require(pluginPath);
           const plugin: Plugin = module.default || module;
-          
+
           if (this.isValidPlugin(plugin)) {
             this.plugins.set(plugin.name, plugin);
-            console.log(`✓ Loaded plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`);
-            
-            // Optimize descriptions
-            await this.optimizePluginDescriptions(plugin);
+            console.log(
+              `✓ Loaded plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`,
+            );
           } else {
             console.warn(`✗ Invalid plugin format in ${file}`);
           }
@@ -113,17 +59,17 @@ export class PluginLoader {
         }
       }
     }
-    
+
     console.log(`Total plugins loaded: ${this.plugins.size}`);
   }
 
   private isValidPlugin(plugin: any): plugin is Plugin {
     return (
       plugin &&
-      typeof plugin.name === 'string' &&
-      typeof plugin.description === 'string' &&
+      typeof plugin.name === "string" &&
+      typeof plugin.description === "string" &&
       Array.isArray(plugin.tools) &&
-      typeof plugin.execute === 'function'
+      typeof plugin.execute === "function"
     );
   }
 
@@ -131,9 +77,15 @@ export class PluginLoader {
     return Array.from(this.plugins.values());
   }
 
-  async executeToolCall(toolName: string, parameters: Record<string, any>): Promise<string> {
+  async executeToolCall(
+    toolName: string,
+    parameters: Record<string, any>,
+  ): Promise<string> {
+    console.log(
+      `Executing tool: ${toolName} with parameters: ${JSON.stringify(parameters)}`,
+    );
     for (const plugin of this.plugins.values()) {
-      const tool = plugin.tools.find(t => t.name === toolName);
+      const tool = plugin.tools.find((t) => t.name === toolName);
       if (tool) {
         console.log(`Executing tool: ${toolName} from plugin: ${plugin.name}`);
         const result = await plugin.execute(toolName, parameters);
@@ -146,30 +98,32 @@ export class PluginLoader {
 
   getToolsForOllama(): any[] {
     const tools: any[] = [];
-    
+
     for (const plugin of this.plugins.values()) {
       for (const tool of plugin.tools) {
-        // Use optimized description if available, otherwise use original
-        const toolDescription = tool.optimizedDescription || tool.description;
-        
-        // Build parameters with optimized descriptions
+        // Use original descriptions directly
+        const toolDescription = tool.description;
+
+        // Build parameters with provided descriptions
         const parameters = {
           type: tool.parameters.type,
           properties: {} as Record<string, any>,
           required: tool.parameters.required,
         };
-        
-        // Copy properties with optimized descriptions
-        for (const [paramName, paramSpec] of Object.entries(tool.parameters.properties)) {
+
+        // Copy parameter properties
+        for (const [paramName, paramSpec] of Object.entries(
+          tool.parameters.properties,
+        )) {
           parameters.properties[paramName] = {
             type: paramSpec.type,
-            description: paramSpec.optimizedDescription || paramSpec.description,
+            description: paramSpec.description,
             ...(paramSpec.enum && { enum: paramSpec.enum }),
           };
         }
-        
+
         tools.push({
-          type: 'function',
+          type: "function",
           function: {
             name: tool.name,
             description: toolDescription,
@@ -178,7 +132,7 @@ export class PluginLoader {
         });
       }
     }
-    
+
     return tools;
   }
 }

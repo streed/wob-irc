@@ -13,6 +13,7 @@ export class OllamaClient {
   private maxToolCallRounds: number = 10;
   private chaosMode?: { enabled: boolean; probability: number };
   private messageHistory?: any;
+  private maxContextTokens: number = 4096;
 
   constructor(
     host: string,
@@ -20,7 +21,8 @@ export class OllamaClient {
     systemPrompt: string,
     maxToolCallRounds?: number,
     chaosMode?: { enabled: boolean; probability: number },
-    messageHistory?: any
+    messageHistory?: any,
+    maxContextTokens?: number
   ) {
     this.ollama = new Ollama({ host });
     this.model = model;
@@ -28,6 +30,56 @@ export class OllamaClient {
     this.maxToolCallRounds = maxToolCallRounds || 10;
     this.chaosMode = chaosMode;
     this.messageHistory = messageHistory;
+    this.maxContextTokens = maxContextTokens || 4096;
+  }
+
+  /**
+   * Summarize a long assistant response to fit within a character limit,
+   * preserving key information and mimicking the original tone.
+   */
+  async summarizeText(text: string, maxChars: number = 400): Promise<string> {
+    try {
+      const system = [
+        'You are an assistant summarizer for an IRC bot.',
+        'Goal: Rewrite the given assistant response to fit within the character limit while preserving all key information and keeping the same tone and voice.',
+        'Constraints:',
+        `- Max ${maxChars} characters`,
+        '- One short paragraph, plain text only',
+        '- No lists, no markdown, no code fences',
+      ].join('\n');
+
+      const response = await this.ollama.chat({
+        model: this.model,
+        messages: [
+          { role: 'system', content: system },
+          {
+            role: 'user',
+            content: `Summarize the following assistant response to <= ${maxChars} characters while keeping the same tone and preserving key information.\n\n---\n${text}`,
+          },
+        ],
+        tools: undefined,
+      });
+
+      const content = (response?.message?.content || '').trim();
+      // Log raw summarization output from the LLM for debugging
+      try {
+        console.log(`[Ollama] Summarization raw output (${content.length} chars): ${content}`);
+      } catch (_) {
+        // best-effort logging only
+      }
+      // Best-effort hard limit enforcement if the model overruns
+      if (content.length > maxChars) {
+        return content.slice(0, maxChars - 1).trimEnd() + '…';
+      }
+      return content;
+    } catch (err) {
+      console.error('Error during summarization:', err);
+      // Fallback: hard truncate with ellipsis
+      if (text.length > maxChars) {
+        return text.slice(0, maxChars - 1).trimEnd() + '…';
+      }
+      return text;
+    }
   }
 
   /**
@@ -37,57 +89,7 @@ export class OllamaClient {
     this.pluginLoader = pluginLoader;
   }
 
-  /**
-   * Optimize a description using the LLM for better tool calling performance.
-   * Takes a generic description and makes it more specific and actionable for the current model.
-   */
-  async optimizeDescription(originalDescription: string, context: string): Promise<string> {
-    try {
-      const prompt = `You are optimizing tool descriptions for an LLM to use effectively. 
-Your task is to take a generic description and make it more clear, specific, and actionable for an LLM that will use this tool.
-
-Context: ${context}
-
-Original description: "${originalDescription}"
-
-Provide an optimized description that:
-1. Is clear and unambiguous about what the tool/parameter does
-2. Specifies exactly when the tool/parameter should be used
-3. Includes any important constraints or requirements
-4. Uses precise language that an LLM can easily understand
-5. Is concise (preferably 1-2 sentences, max 3)
-
-Return ONLY the optimized description, nothing else.`;
-
-      const response = await this.ollama.chat({
-        model: this.model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
-
-      const optimized = response.message.content.trim();
-      
-      // If optimization failed or returned empty, fall back to original
-      if (!optimized || optimized.length === 0) {
-        console.warn('[Ollama] Description optimization returned empty, using original');
-        return originalDescription;
-      }
-
-      return optimized;
-    } catch (error) {
-      console.error('[Ollama] Error optimizing description, using original:', error);
-      return originalDescription;
-    }
-  }
-
   async processMessages(channel: string, messages: QueuedMessage[]): Promise<string> {
-    // Build context from queued messages
-    const context = this.buildContext(channel, messages);
-    
     // Get conversation history for this channel
     let history = this.conversationHistory.get(channel) || [];
     
@@ -99,21 +101,42 @@ Return ONLY the optimized description, nothing else.`;
       });
     }
 
-    // Add the new user messages
-    history.push({
-      role: 'user',
-      content: context,
-    });
+    // Add a compact per-turn context snippet (time/channel and optional chaos snippets)
+    const turnContext = this.buildTurnContextSnippet(channel);
+    if (turnContext) {
+      history.push({ role: 'system', content: turnContext });
+    }
+
+    // Add the new user messages as conversational turns
+    for (const msg of messages) {
+      history.push({
+        role: 'user',
+        content: `[${msg.nick}] ${msg.message}`,
+      });
+    }
 
     // Get tools from plugins
     const tools = this.pluginLoader ? this.pluginLoader.getToolsForOllama() : [];
 
     try {
+      // Prepare a trimmed copy of the history that fits within token limit
+      let requestHistory = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
+      // Log the user/assistant turns being sent
+      this.logRequestHistory('Initial request', requestHistory);
+
       let response = await this.ollama.chat({
         model: this.model,
-        messages: history,
+        messages: requestHistory,
         tools: tools.length > 0 ? tools : undefined,
       });
+
+      // Log the initial raw assistant response (including when it contains tool calls)
+      try {
+        const toolCount = response?.message?.tool_calls?.length || 0;
+        console.log(`[Ollama] Initial LLM response (raw, tools=${toolCount}): ${response?.message?.content || ''}`);
+      } catch (_) {
+        // best-effort logging only
+      }
 
       // Handle tool calls in a loop with a maximum number of rounds
       let toolCallRound = 0;
@@ -166,9 +189,20 @@ Return ONLY the optimized description, nothing else.`;
           if (!this.pluginLoader) {
             throw new Error('PluginLoader not set but tool calls were received');
           }
+          // Handle both stringified and object arguments from tool calls
+          let parsedArgs: Record<string, any> = {};
+          try {
+            const rawArgs = toolCall.function.arguments;
+            parsedArgs = typeof rawArgs === 'string' ? JSON.parse(rawArgs || '{}') : (rawArgs || {});
+          } catch (e) {
+            console.warn('[Ollama] Failed to parse tool arguments, passing raw value');
+            // Fallback: pass through as-is; plugin may handle strings if needed
+            parsedArgs = (toolCall.function as any).arguments as any;
+          }
+
           const toolResult = await this.pluginLoader.executeToolCall(
             toolCall.function.name,
-            toolCall.function.arguments
+            parsedArgs
           );
 
           // Add tool response to history
@@ -178,12 +212,24 @@ Return ONLY the optimized description, nothing else.`;
           });
         }
 
+        // Prepare trimmed history again for next round
+        requestHistory = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
+        this.logRequestHistory(`Tool round ${toolCallRound} request`, requestHistory);
+
         // Get next response from the model
         response = await this.ollama.chat({
           model: this.model,
-          messages: history,
+          messages: requestHistory,
           tools: tools.length > 0 ? tools : undefined,
         });
+
+        // Log follow-up raw assistant response
+        try {
+          const toolCount = response?.message?.tool_calls?.length || 0;
+          console.log(`[Ollama] Follow-up LLM response (raw, tools=${toolCount}): ${response?.message?.content || ''}`);
+        } catch (_) {
+          // best-effort logging only
+        }
       }
       
       // If we exceeded max rounds or detected a loop, force a final response without tools
@@ -200,11 +246,20 @@ Return ONLY the optimized description, nothing else.`;
         });
         
         // Get final response without allowing more tool calls
+        requestHistory = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
+        this.logRequestHistory('Forced final request', requestHistory);
         response = await this.ollama.chat({
           model: this.model,
-          messages: history,
+          messages: requestHistory,
           tools: undefined, // Don't allow more tool calls
         });
+
+        // Log the forced final raw assistant response
+        try {
+          console.log(`[Ollama] Forced final LLM response (raw): ${response?.message?.content || ''}`);
+        } catch (_) {
+          // best-effort logging only
+        }
       }
       
       // Log completion
@@ -215,9 +270,12 @@ Return ONLY the optimized description, nothing else.`;
       // Add final assistant response to history
       history.push(response.message);
 
-      // Trim history if it gets too long
+      // Prune assistant tool-call messages to keep only the last one
+      history = this.pruneAssistantToolMessages(history);
+
+      // Trim history using token limit (and fallback to max message count)
+      history = this.trimHistoryToTokenLimit(history, this.maxContextTokens);
       if (history.length > this.maxHistoryLength) {
-        // Keep system prompt and recent messages
         const systemMsg = history[0];
         const recentMessages = history.slice(-this.maxHistoryLength + 1);
         history = [systemMsg, ...recentMessages];
@@ -226,8 +284,22 @@ Return ONLY the optimized description, nothing else.`;
       // Update conversation history
       this.conversationHistory.set(channel, history);
 
+      // Log the final raw content prior to filtering
+      try {
+        console.log(`[Ollama] Final assistant message (raw): ${response?.message?.content || ''}`);
+      } catch (_) {
+        // best-effort logging only
+      }
+
       // Filter out <think> blocks and sanitize Unicode before returning
       const filtered = this.filterThinkBlocks(response.message.content);
+
+      // Log the filtered content actually used for output
+      try {
+        console.log(`[Ollama] Final assistant message (filtered): ${filtered}`);
+      } catch (_) {
+        // best-effort logging only
+      }
       return sanitizeUnicode(filtered);
     } catch (error) {
       console.error('Error calling Ollama:', error);
@@ -235,67 +307,114 @@ Return ONLY the optimized description, nothing else.`;
     }
   }
 
-  private buildContext(channel: string, messages: QueuedMessage[]): string {
-    const lines: string[] = [];
-    const now = new Date();
-    
-    // Add comprehensive temporal context
-    const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-    const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC' });
-    
-    lines.push(`Current date and time (UTC): ${dayOfWeek}, ${dateStr} at ${timeStr}`);
-    lines.push(`ISO timestamp: ${now.toISOString()}`);
-    
-    // Add channel context
-    lines.push(`Current channel: ${channel}`);
-    lines.push('');
-    
-    // In chaos mode, add random historical messages for unpredictable responses
-    if (this.chaosMode?.enabled && this.messageHistory) {
-      try {
-        const randomMessages = this.messageHistory.getRandomMessages(channel, 5);
-        if (randomMessages.length > 0) {
-          lines.push('Random historical messages for context:');
-          for (const msg of randomMessages) {
-            const date = new Date(msg.timestamp);
-            const timeStr = date.toLocaleTimeString();
-            lines.push(`[${timeStr}] <${msg.nick}> ${msg.message}`);
-          }
-          lines.push('');
-        }
-      } catch (error) {
-        // Silently ignore errors getting random messages
-        console.error('Error getting random messages for chaos mode:', error);
-      }
-    }
-    
-    // Add messages with relative timestamps
-    lines.push('Recent messages:');
-    for (const msg of messages) {
-      const messageAge = now.getTime() - msg.timestamp;
-      const secondsAgo = Math.floor(messageAge / 1000);
-      const timeAgo = this.formatTimeAgo(secondsAgo);
-      lines.push(`[${msg.nick}] (${timeAgo}): ${msg.message}`);
-    }
-    
-    return lines.join('\n');
+  // Approximate token estimation utilities and history trimming
+  private estimateTokens(text: string): number {
+    if (!text) return 0;
+    // Rough heuristic: ~4 chars/token
+    return Math.ceil(text.length / 4);
   }
 
-  private formatTimeAgo(seconds: number): string {
-    if (seconds < 5) {
-      return 'just now';
-    } else if (seconds < 60) {
-      return `${seconds}s ago`;
-    } else if (seconds < 3600) {
-      const minutes = Math.floor(seconds / 60);
-      return `${minutes}m ago`;
-    } else if (seconds < 86400) {
-      const hours = Math.floor(seconds / 3600);
-      return `${hours}h ago`;
-    } else {
-      const days = Math.floor(seconds / 86400);
-      return `${days}d ago`;
+  private estimateMessageTokens(msg: any): number {
+    // Include small overhead per message
+    const overhead = 4;
+    return overhead + this.estimateTokens(msg?.content || '');
+  }
+
+  private trimHistoryToTokenLimit(messages: any[], maxTokens: number): any[] {
+    if (!messages || messages.length === 0) return [];
+    const system = messages[0];
+    const rest = messages.slice(1);
+
+    // Accumulate from the end (most recent first) until we hit the budget
+    const selected: any[] = [];
+    let total = this.estimateMessageTokens(system);
+    for (let i = rest.length - 1; i >= 0; i--) {
+      const msg = rest[i];
+      const cost = this.estimateMessageTokens(msg);
+      if (total + cost > maxTokens) break;
+      selected.push(msg);
+      total += cost;
+    }
+    selected.reverse();
+    return [system, ...selected];
+  }
+
+  private pruneAssistantToolMessages(messages: any[]): any[] {
+    if (!messages || messages.length === 0) return messages;
+    const system = messages[0];
+    const rest = messages.slice(1);
+    const toolAssistantIdxs: number[] = [];
+    for (let i = 0; i < rest.length; i++) {
+      const m = rest[i];
+      if (m?.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length > 0) {
+        toolAssistantIdxs.push(i);
+      }
+    }
+    if (toolAssistantIdxs.length <= 1) {
+      return messages;
+    }
+    const lastKeepIdx = toolAssistantIdxs[toolAssistantIdxs.length - 1];
+    const pruned: any[] = [];
+    for (let i = 0; i < rest.length; i++) {
+      const m = rest[i];
+      const isToolAssistant = toolAssistantIdxs.includes(i);
+      if (!isToolAssistant || i === lastKeepIdx) {
+        pruned.push(m);
+      }
+    }
+    return [system, ...pruned];
+  }
+
+  private truncate(text: string, max: number): string {
+    if (!text) return '';
+    if (text.length <= max) return text;
+    return text.slice(0, max - 1).trimEnd() + '…';
+  }
+
+  private logRequestHistory(label: string, messages: any[]): void {
+    try {
+      const totalTokens = (messages || []).reduce((sum, m) => sum + this.estimateMessageTokens(m), 0);
+      const ua = (messages || []).filter(m => m.role === 'user' || m.role === 'assistant');
+      console.log(`[Ollama] ${label}: sending ${messages.length} message(s), ~${totalTokens} tokens (UA turns: ${ua.length})`);
+      const lines = ua.map((m, i) => `  [${i}] ${m.role}: ${this.truncate(String(m.content || ''), 500)}`);
+      if (lines.length > 0) {
+        console.log(lines.join('\n'));
+      } else {
+        console.log('  (no user/assistant turns; likely system/tool-only)');
+      }
+    } catch (_) {
+      // best-effort logging only
+    }
+  }
+
+  private buildTurnContextSnippet(channel: string): string {
+    try {
+      const now = new Date();
+      const iso = now.toISOString();
+      const parts: string[] = [];
+      parts.push(`Context: ${iso} UTC; channel: ${channel}`);
+      
+      if (this.chaosMode?.enabled && this.messageHistory) {
+        try {
+          // Include chaos snippets based on probability guard (default 10%)
+          const p = typeof this.chaosMode.probability === 'number' ? this.chaosMode.probability : 0.1;
+          const roll = Math.random();
+          if (roll < p) {
+            const randomMessages = this.messageHistory.getRandomMessages(channel, 3) || [];
+            if (randomMessages.length > 0) {
+              const snippets = randomMessages
+                .map((m: any) => `[${m.nick}] ${String(m.message || '').slice(0, 120)}`)
+                .join(' | ');
+              parts.push(`Chaos snippets: ${snippets}`);
+            }
+          }
+        } catch (err) {
+          console.error('Error getting chaos snippets:', err);
+        }
+      }
+      return parts.join(' \n ');
+    } catch (_) {
+      return '';
     }
   }
 

@@ -36,12 +36,12 @@ export class IRCBot {
       this.config.systemPrompt || this.getDefaultSystemPrompt(),
       this.config.ollama.maxToolCallRounds,
       this.config.chaosMode,
-      this.messageHistory
+      this.messageHistory,
+      this.config.ollama.maxContextTokens
     );
     
-    // Initialize plugin loader and set OllamaClient for optimization
+    // Initialize plugin loader
     this.pluginLoader = new PluginLoader();
-    this.pluginLoader.setOllamaClient(this.ollamaClient);
     
     // Now set the plugin loader in OllamaClient for tool execution
     this.ollamaClient.setPluginLoader(this.pluginLoader);
@@ -54,33 +54,38 @@ export class IRCBot {
   }
 
   private getDefaultSystemPrompt(): string {
-    return `You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. 
-Keep your responses brief and appropriate for IRC chat.
+    return `You are an IRC assistant. Be concise, correct, and tool-smart.
 
-IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, underscores, backticks, or other markdown syntax.
+Output:
+- Plain text only (no markdown, code fences, or special formatting)
+- Avoid <think> tags or hidden reasoning
+- Default to one short paragraph under ~350 characters unless asked for detail
 
-TOOLS AVAILABLE TO YOU:
-You have access to powerful tools that can help you answer questions more effectively. ALWAYS consider using these tools when they would be helpful:
+Tool policy:
+- Call tools whenever they give more reliable answers than guessing (math, conversions, definitions, real-time data, or anything about channel history)
+- Fill all required parameters; use sensible defaults; do not invent unknown values
+- If key info is missing, ask a one-line clarifying question
+- After a tool response, synthesize a brief, actionable answer (do not paste long raw output)
 
-1. MESSAGE HISTORY TOOLS - Use these frequently to provide context-aware responses:
-   - get_recent_messages: See what was just discussed in the channel
-   - get_user_messages: Find what a specific person said
-   - search_messages: Search for specific words or phrases in history (keyword search)
-   - semantic_search_messages: Find messages by meaning/concept (great for "what did we discuss about X?")
-   - get_channel_stats: Show channel activity statistics
-   - get_user_stats: Show how active a specific user has been
-   - get_daily_summaries: Review past days' activity summaries
+Message history tools (use these first for context questions):
+- get_recent_messages: Check the last N messages when asked "what were we discussing?"
+- get_user_messages: What a specific user said
+- search_messages: Exact keywords/phrases
+- semantic_search_messages: Conceptual/meaning searches about a topic
+- get_channel_stats / get_user_stats: Activity summaries
+- get_daily_summaries: Historical daily rollups
 
-2. OTHER TOOLS - Additional tools may be available depending on loaded plugins
-
-When users ask about past conversations, what someone said, or topics discussed, IMMEDIATELY use the appropriate message history tool. The tools are fast and provide accurate information directly from the chat logs.`;
+Style:
+- Friendly, neutral tone
+- Do not fabricate URLs or facts; if uncertain, say so briefly
+- Keep answers crisp for IRC; no lists unless the user asks`;
   }
 
   async start(): Promise<void> {
-    // Register built-in plugins (with optimization)
+    // Register built-in plugins
     await this.pluginLoader.registerBuiltinPlugin(createMessageHistoryPlugin(this.messageHistory));
     
-    // Load plugins (with optimization)
+    // Load plugins
     await this.pluginLoader.loadPlugins();
     
     // Setup event handlers first, before connecting
@@ -258,13 +263,33 @@ When users ask about past conversations, what someone said, or topics discussed,
       
       if (response && response.trim()) {
         // Remove markdown formatting for IRC
-        const cleanedResponse = this.removeMarkdown(response);
-        
-        // Split long messages if needed (IRC typically has ~512 char limit)
-        const lines = this.splitMessage(cleanedResponse, 400);
-        
-        for (const line of lines) {
-          this.client.say(channel, line);
+        const cleanedResponse = this.removeMarkdown(response).trim();
+
+        // Log the cleaned response that will be used for sending
+        try {
+          console.log(`[IRC] Cleaned LLM response for ${channel} (${cleanedResponse.length} chars): ${cleanedResponse}`);
+        } catch (_) {
+          // best-effort logging only
+        }
+
+        // If response exceeds IRC-safe length, summarize to preserve info and tone
+        if (cleanedResponse.length > 400) {
+          console.log(`[IRC] Summarizing response for ${channel}: ${cleanedResponse.length} -> <=400 chars`);
+          const summary = await this.ollamaClient.summarizeText(cleanedResponse, 400);
+          try {
+            console.log(`[IRC->${channel}] Summary to send (${summary.length} chars): ${summary}`);
+          } catch (_) {}
+          this.client.say(channel, summary);
+        } else {
+          // Short enough: send as-is (still split for safety on rare edge cases)
+          const lines = this.splitMessage(cleanedResponse, 400);
+          try {
+            console.log(`[IRC] Sending ${lines.length} line(s) to ${channel}`);
+          } catch (_) {}
+          for (const line of lines) {
+            try { console.log(`[IRC->${channel}] ${line}`); } catch (_) {}
+            this.client.say(channel, line);
+          }
         }
       }
     } catch (error) {

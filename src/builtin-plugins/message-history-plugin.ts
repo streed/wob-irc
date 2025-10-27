@@ -185,7 +185,7 @@ export function createMessageHistoryPlugin(
 
           const formatted = messages
             .map((msg) => {
-              const date = new Date(msg.timestamp);
+              const date = new Date(Number(msg.timestamp));
               const timeStr = date.toLocaleTimeString();
               return `[${timeStr}] ${msg.message}`;
             })
@@ -207,7 +207,7 @@ export function createMessageHistoryPlugin(
 
           const formatted = messages
             .map((msg) => {
-              const date = new Date(msg.timestamp);
+              const date = new Date(Number(msg.timestamp));
               const timeStr = date.toLocaleTimeString();
               return `[${timeStr}] <${msg.nick}> ${msg.message}`;
             })

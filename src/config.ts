@@ -35,6 +35,9 @@ export function loadConfig(): BotConfig {
         ? parseInt(process.env.MAX_TOOL_CALL_ROUNDS) 
         : undefined,
       embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text:v1.5',
+      maxContextTokens: process.env.MAX_CONTEXT_TOKENS
+        ? parseInt(process.env.MAX_CONTEXT_TOKENS)
+        : 4096,
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,

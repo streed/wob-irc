@@ -12,7 +12,8 @@
     "host": "http://localhost:11434",
     "model": "llama3.2",
     "maxToolCallRounds": 10,
-    "embeddingModel": "nomic-embed-text"
+    "embeddingModel": "nomic-embed-text",
+    "maxContextTokens": 4096
   },
   "messageDebounceMs": 2000,
   "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.",

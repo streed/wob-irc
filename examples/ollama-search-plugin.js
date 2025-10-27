@@ -10,7 +10,7 @@ const { Ollama } = require('ollama');
 
 const plugin = {
   name: 'ollama-search',
-  description: 'Search the web using Ollama and return summarized results',
+  description: 'Search the web via Ollama and return a brief summary. Use for current or external information; prefer concise, source-backed results.',
   tools: [
     {
       name: 'web_search',
@@ -20,11 +20,11 @@ const plugin = {
         properties: {
           query: {
             type: 'string',
-            description: 'The search query to look up on the web (e.g., "latest news on AI", "weather in Paris")',
+            description: 'Search query text. Be specific about the topic and timeframe if relevant (e.g., "AI news Oct 2025", "weather in Paris today").',
           },
           max_results: {
             type: 'number',
-            description: 'Maximum number of search results to retrieve (default: 1, max: 10)',
+            description: 'Maximum results to retrieve. Default 1; allowed range 1–10.',
           },
         },
         required: ['query'],
