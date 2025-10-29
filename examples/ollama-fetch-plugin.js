@@ -60,58 +60,26 @@ const plugin = {
         const content = fetchResponse.content;
         const links = fetchResponse.links || [];
         
-        // Build response with title and content
-        let response = `"${title}" from ${fetchResponse.url}:\n${content}`;
-        
-        // If content is too long, use Ollama to summarize it
         // IRC typically has ~400 char limit as used in the bot
         const ircLimit = 350; // Leave some buffer
         
-        if (response.length > ircLimit) {
-          try {
-            // Get the system prompt from environment or use default
-            const systemPrompt = process.env.SYSTEM_PROMPT || 'You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.';
-            
-            // Initialize local Ollama instance for summarization
-            // Note: This is separate from the cloud Ollama instance used for web fetch above
-            // The local instance is used for chat/summarization capabilities
-            const localOllama = new Ollama({
-              host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-            });
-            
-            // Ask Ollama to summarize in the voice of the system prompt
-            const summaryResponse = await localOllama.chat({
-              model: process.env.OLLAMA_MODEL || 'llama3.2',
-              messages: [
-                {
-                  role: 'system',
-                  content: systemPrompt,
-                },
-                {
-                  role: 'user',
-                  content: `Please summarize the following content in under ${ircLimit} characters, maintaining the style and voice from your system prompt. Include the title and URL reference.\n\nTitle: "${title}"\nURL: ${fetchResponse.url}\nContent: ${content}`,
-                },
-              ],
-            });
-            
-            const summary = summaryResponse.message.content.trim();
-            
-            // Add info about available links if any
-            const linkInfo = links.length > 0 ? ` (${links.length} links found)` : '';
-            
-            return `${summary}${linkInfo}`;
-          } catch (summaryError) {
-            console.error('[ollama-fetch] Error summarizing content:', summaryError);
-            // Fallback to truncation if summarization fails
-            const truncated = response.substring(0, ircLimit - 30);
-            const lastSpace = truncated.lastIndexOf(' ');
-            const finalResponse = truncated.substring(0, lastSpace > 0 ? lastSpace : truncated.length);
-            const linkInfo = links.length > 0 ? ` (${links.length} links found)` : '';
-            return `${finalResponse}...${linkInfo}`;
-          }
+        // Build response with title and content
+        let response = `"${title}" from ${fetchResponse.url}:\n${content}`;
+        
+        // If content is already short enough for IRC, return it
+        if (response.length <= ircLimit) {
+          return response;
         }
         
-        return response;
+        // Content is too long, truncate with ellipsis
+        const truncated = response.substring(0, ircLimit - 30);
+        const lastSpace = truncated.lastIndexOf(' ');
+        const finalResponse = truncated.substring(0, lastSpace > 0 ? lastSpace : truncated.length);
+        
+        // Add info about available links if any
+        const linkInfo = links.length > 0 ? ` (${links.length} links found)` : '';
+        
+        return `${finalResponse}...${linkInfo}`;
       } catch (error) {
         console.error('[ollama-fetch] Error fetching URL:', error);
         

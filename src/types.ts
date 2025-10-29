@@ -37,6 +37,7 @@ export interface BotConfig {
     maxToolCallRounds?: number;
     embeddingModel?: string;
     maxContextTokens?: number; // Cap for chat context tokens
+    disableThinking?: boolean; // When true, prevent models from emitting <think>/reasoning content
   };
   messageDebounceMs: number;
   systemPrompt?: string;

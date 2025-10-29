@@ -37,7 +37,8 @@ export class IRCBot {
       this.config.ollama.maxToolCallRounds,
       this.config.chaosMode,
       this.messageHistory,
-      this.config.ollama.maxContextTokens
+      this.config.ollama.maxContextTokens,
+      this.config.ollama.disableThinking === true
     );
     
     // Initialize plugin loader
@@ -58,27 +59,29 @@ export class IRCBot {
 
 Output:
 - Plain text only (no markdown, code fences, or special formatting)
-- Avoid <think> tags or hidden reasoning
-- Default to one short paragraph under ~350 characters unless asked for detail
+- Final answer only — never include chain-of-thought, steps, or meta; no <think> tags
+- Prefer one short line (≤400 chars). If that cannot convey a complete answer, you may send up to 3 lines (each ≤400 chars), prioritizing the highest-signal facts
+- If key info is missing, ask one crisp clarifying question (single line)
 
 Tool policy:
-- Call tools whenever they give more reliable answers than guessing (math, conversions, definitions, real-time data, or anything about channel history)
-- Fill all required parameters; use sensible defaults; do not invent unknown values
-- If key info is missing, ask a one-line clarifying question
-- After a tool response, synthesize a brief, actionable answer (do not paste long raw output)
+- Use tools when they improve reliability (math, conversions, definitions, channel history); otherwise answer directly
+- Choose the minimal tool(s) needed; avoid redundant calls; do not loop on the same tool
+- Fill required parameters; use sensible defaults (e.g., limit≈20) and cap large outputs
+- After a tool response, synthesize a brief answer; do not paste long raw results
+- If a question is about recent chat context, first try message-history tools
 
-Message history tools (use these first for context questions):
-- get_recent_messages: Check the last N messages when asked "what were we discussing?"
-- get_user_messages: What a specific user said
+Message history tools (how to choose):
+- get_recent_messages: Last N lines; use for “what were we discussing?”
+- get_user_messages: Lines from one user
 - search_messages: Exact keywords/phrases
-- semantic_search_messages: Conceptual/meaning searches about a topic
+- semantic_search_messages: Conceptual/meaning similarity when keywords fail
 - get_channel_stats / get_user_stats: Activity summaries
-- get_daily_summaries: Historical daily rollups
+- get_daily_summaries: Historical day-level rollups
 
 Style:
-- Friendly, neutral tone
+- Friendly, neutral tone; no filler or hedging
 - Do not fabricate URLs or facts; if uncertain, say so briefly
-- Keep answers crisp for IRC; no lists unless the user asks`;
+- Keep answers crisp for IRC; no lists unless explicitly asked`;
   }
 
   async start(): Promise<void> {
@@ -263,7 +266,15 @@ Style:
       
       if (response && response.trim()) {
         // Remove markdown formatting for IRC
-        const cleanedResponse = this.removeMarkdown(response).trim();
+        let cleanedResponse = this.removeMarkdown(response).trim();
+        // Remove any explicit reasoning/thought preambles — send answer only
+        cleanedResponse = this.removeReasoningPreambles(cleanedResponse);
+
+        // If nothing remains after cleaning, don't send or record
+        if (!cleanedResponse || cleanedResponse.trim().length === 0) {
+          try { console.log(`[IRC] Skipping empty response after cleaning for ${channel}`); } catch (_) {}
+          return;
+        }
 
         // Log the cleaned response that will be used for sending
         try {
@@ -272,30 +283,67 @@ Style:
           // best-effort logging only
         }
 
-        // If response exceeds IRC-safe length, summarize to preserve info and tone
-        if (cleanedResponse.length > 400) {
-          console.log(`[IRC] Summarizing response for ${channel}: ${cleanedResponse.length} -> <=400 chars`);
-          const summary = await this.ollamaClient.summarizeText(cleanedResponse, 400);
+        let finalSentText = '';
+        // If response fits within one IRC message, send single line; else allow up to 3 lines
+        if (cleanedResponse.length <= 400 && cleanedResponse.split('\n').length <= 1) {
+          try { console.log(`[IRC->${channel}] ${cleanedResponse}`); } catch (_) {}
+          this.client.say(channel, cleanedResponse);
+          finalSentText = cleanedResponse;
+          // Record assistant message into channel history DB (best-effort)
           try {
-            console.log(`[IRC->${channel}] Summary to send (${summary.length} chars): ${summary}`);
-          } catch (_) {}
-          this.client.say(channel, summary);
+            const p = this.messageHistory.addMessage(channel, this.client.user.nick, cleanedResponse);
+            if (p instanceof Promise) { p.catch((e: any) => console.error('Error recording assistant message:', e)); }
+          } catch (e) { /* ignore */ }
         } else {
-          // Short enough: send as-is (still split for safety on rare edge cases)
-          const lines = this.splitMessage(cleanedResponse, 400);
-          try {
-            console.log(`[IRC] Sending ${lines.length} line(s) to ${channel}`);
-          } catch (_) {}
+          console.log(`[IRC] Summarizing for multi-line output (<=3 lines) for ${channel}`);
+          // Summarize to ~3 messages worth of characters
+          const summary = await this.ollamaClient.summarizeText(cleanedResponse, 1200);
+          const lines = this.splitMessage(summary, 400).slice(0, 3);
+          try { console.log(`[IRC] Sending ${lines.length} line(s) to ${channel} (multi-line mode)`); } catch (_) {}
           for (const line of lines) {
-            try { console.log(`[IRC->${channel}] ${line}`); } catch (_) {}
-            this.client.say(channel, line);
+            const out = line.trim();
+            if (!out) continue;
+            try { console.log(`[IRC->${channel}] ${out}`); } catch (_) {}
+            this.client.say(channel, out);
+            // Record each line into channel history DB (best-effort)
+            try {
+              const p = this.messageHistory.addMessage(channel, this.client.user.nick, out);
+              if (p instanceof Promise) { p.catch((e: any) => console.error('Error recording assistant message:', e)); }
+            } catch (e) { /* ignore */ }
           }
+          finalSentText = lines.join('\n');
+        }
+
+        // Record only what we actually sent to IRC into the LLM's history,
+        // excluding any hidden reasoning or markdown that wasn't sent.
+        if (finalSentText) {
+          await this.ollamaClient.recordAssistantOutput(channel, finalSentText);
         }
       }
     } catch (error) {
       console.error('Error processing messages:', error);
       this.client.say(channel, 'Sorry, I encountered an error processing that request.');
     }
+  }
+
+  // Remove obvious reasoning/chain-of-thought preambles and meta statements
+  private removeReasoningPreambles(text: string): string {
+    if (!text) return '';
+    // Strip common prefaces indicating reasoning
+    const patterns = [
+      /^(?:thoughts?|thinking|reasoning|analysis|plan|approach|steps?|explanation)\s*[:\-]/gim,
+      /^(?:let'?s\s+think|let me think|i will|here'?s how|i (?:am|was) going to)\b[\s\S]*?\n/gim,
+      /^step\s*\d+[:\.\-]/gim,
+    ];
+    let result = text;
+    for (const re of patterns) {
+      result = result.replace(re, '');
+    }
+    // Remove standalone labels like "Final answer:" and similar
+    result = result.replace(/^\s*(final\s+answer|answer)\s*[:\-]\s*/gim, '');
+    // Collapse excessive blank lines
+    result = result.replace(/\n{3,}/g, '\n\n');
+    return result.trim();
   }
 
   private removeMarkdown(text: string): string {

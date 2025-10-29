@@ -7,11 +7,11 @@ export function createMessageHistoryPlugin(
 ): Plugin {
   return {
     name: "message-history",
-    description: "Query and search through channel message history",
+    description: "Fast, bounded tools for retrieving IRC message history and activity stats. Prefer these for any context-related questions.",
     tools: [
       {
         name: 'get_recent_messages',
-        description: 'Retrieve the most recent messages from the channel. USE THIS when users ask "what was just said?", "what are we talking about?", "show recent messages", or to understand current conversation context.',
+        description: 'Get the last N messages from a channel. Use for "what were we discussing?" or to ground context. Keep N small (default≈20).',
         parameters: {
           type: "object",
           properties: {
@@ -21,7 +21,7 @@ export function createMessageHistoryPlugin(
             },
             limit: {
               type: 'number',
-              description: 'Number of recent messages to retrieve (default: 20, max: 100)',
+              description: 'Recent message count to retrieve (default: 20, max: 100). Choose the smallest that answers the question.',
             },
           },
           required: ["channel"],
@@ -29,7 +29,7 @@ export function createMessageHistoryPlugin(
       },
       {
         name: 'get_user_messages',
-        description: 'Get all messages from a specific user. USE THIS when users ask "what did [username] say?", "show messages from [username]", or "has [username] talked about X?".',
+        description: 'Get recent messages from a specific user in a channel. Use for "what did [nick] say?" Keep results bounded.',
         parameters: {
           type: "object",
           properties: {
@@ -43,7 +43,7 @@ export function createMessageHistoryPlugin(
             },
             limit: {
               type: 'number',
-              description: 'Number of messages to retrieve (default: 20, max: 100)',
+              description: 'Number of messages to retrieve (default: 20, max: 100). Choose the smallest useful amount.',
             },
           },
           required: ["channel", "nick"],
@@ -51,7 +51,7 @@ export function createMessageHistoryPlugin(
       },
       {
         name: 'search_messages',
-        description: 'Find messages containing exact keywords or phrases. USE THIS for questions like "when was [word] mentioned?", "find messages with [keyword]", or "search for [exact phrase]". Best for finding specific words.',
+        description: 'Find messages containing exact keywords or phrases. Use for locating specific words; prefer small limits and precise terms.',
         parameters: {
           type: "object",
           properties: {
@@ -61,11 +61,11 @@ export function createMessageHistoryPlugin(
             },
             search_text: {
               type: 'string',
-              description: 'The exact text/keyword to search for (will match partial words)',
+              description: 'Exact text/keyword to search (partial-word matches allowed). Use quotes for phrases.',
             },
             limit: {
               type: 'number',
-              description: 'Number of matching messages to retrieve (default: 20, max: 100)',
+              description: 'Max matches to retrieve (default: 20, max: 100). Keep small to reduce noise.',
             },
           },
           required: ["channel", "search_text"],
@@ -73,7 +73,7 @@ export function createMessageHistoryPlugin(
       },
       {
         name: 'semantic_search_messages',
-        description: 'Find messages by meaning and context, not just keywords. USE THIS for questions like "what did we discuss about [topic]?", "find conversations related to [concept]", or "when did someone ask about [subject]?". Finds conceptually similar messages even with different wording.',
+        description: 'Find messages by meaning (embeddings). Use when keyword search fails. Prefer small limits (default≈10).',
         parameters: {
           type: "object",
           properties: {
@@ -83,11 +83,11 @@ export function createMessageHistoryPlugin(
             },
             query: {
               type: 'string',
-              description: 'Natural language query describing what you\'re looking for (e.g., "machine learning discussions", "help with bugs")',
+              description: 'Natural-language query describing what you\'re looking for (e.g., "ML discussions", "help with bugs").',
             },
             limit: {
               type: 'number',
-              description: 'Number of similar messages to retrieve (default: 10, max: 50)',
+              description: 'Number of similar messages to retrieve (default: 10, max: 50). Keep small to stay focused.',
             },
           },
           required: ["channel", "query"],
@@ -95,7 +95,7 @@ export function createMessageHistoryPlugin(
       },
       {
         name: 'get_channel_stats',
-        description: 'Show channel activity statistics including total message count and list of active users. USE THIS when asked "how active is this channel?", "show channel stats", or "who talks here?".',
+        description: 'Channel activity stats: message count and active users. Use for "how active is this channel?" or "who talks here?"',
         parameters: {
           type: "object",
           properties: {
@@ -109,7 +109,7 @@ export function createMessageHistoryPlugin(
       },
       {
         name: 'get_user_stats',
-        description: 'Show how many messages a specific user has sent and their activity percentage. USE THIS when asked "how active is [username]?", "how many messages has [username] sent?", or "show [username] stats".',
+        description: 'User activity stats in a channel: message count and share. Use for "how active is [nick]?"',
         parameters: {
           type: "object",
           properties: {
@@ -127,7 +127,7 @@ export function createMessageHistoryPlugin(
       },
       {
         name: 'get_daily_summaries',
-        description: 'View historical daily activity summaries showing message and user counts per day. USE THIS when asked "show activity history", "what happened yesterday?", "show daily summaries", or to review past activity patterns.',
+        description: 'Historical daily activity summaries (message and user counts). Use for activity history (“what happened yesterday?”).',
         parameters: {
           type: "object",
           properties: {
@@ -137,7 +137,7 @@ export function createMessageHistoryPlugin(
             },
             limit: {
               type: 'number',
-              description: 'Number of days to retrieve (default: 7, max: 30)',
+              description: 'Number of days to retrieve (default: 7, max: 30). Keep small to stay relevant.',
             },
           },
           required: ["channel"],

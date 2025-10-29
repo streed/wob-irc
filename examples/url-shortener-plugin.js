@@ -7,7 +7,7 @@ const plugin = {
   tools: [
     {
       name: 'shorten_url',
-      description: 'Shorten a long URL using TinyURL service. Returns a shorter URL that redirects to the original.',
+      description: 'Shorten a long URL using TinyURL. Use when asked to shorten a link; require http(s) URL; return only the shortened URL.',
       parameters: {
         type: 'object',
         properties: {

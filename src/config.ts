@@ -38,6 +38,7 @@ export function loadConfig(): BotConfig {
       maxContextTokens: process.env.MAX_CONTEXT_TOKENS
         ? parseInt(process.env.MAX_CONTEXT_TOKENS)
         : 4096,
+      disableThinking: process.env.DISABLE_THINKING === 'true',
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,
