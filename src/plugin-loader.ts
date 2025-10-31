@@ -101,31 +101,39 @@ export class PluginLoader {
 
     for (const plugin of this.plugins.values()) {
       for (const tool of plugin.tools) {
+        // Validate tool has a name
+        if (!tool.name || typeof tool.name !== 'string' || tool.name.trim() === '') {
+          console.warn(`Skipping tool without valid name in plugin:`, tool);
+          continue;
+        }
+
         // Use original descriptions directly
-        const toolDescription = tool.description;
+        const toolDescription = tool.description || '';
 
         // Build parameters with provided descriptions
         const parameters = {
-          type: tool.parameters.type,
+          type: tool.parameters?.type || 'object',
           properties: {} as Record<string, any>,
-          required: tool.parameters.required,
+          required: tool.parameters?.required || [],
         };
 
         // Copy parameter properties
-        for (const [paramName, paramSpec] of Object.entries(
-          tool.parameters.properties,
-        )) {
-          parameters.properties[paramName] = {
-            type: paramSpec.type,
-            description: paramSpec.description,
-            ...(paramSpec.enum && { enum: paramSpec.enum }),
-          };
+        if (tool.parameters?.properties) {
+          for (const [paramName, paramSpec] of Object.entries(
+            tool.parameters.properties,
+          )) {
+            parameters.properties[paramName] = {
+              type: paramSpec.type || 'string',
+              description: paramSpec.description || '',
+              ...(paramSpec.enum && { enum: paramSpec.enum }),
+            };
+          }
         }
 
         tools.push({
           type: "function",
           function: {
-            name: tool.name,
+            name: tool.name.trim(),
             description: toolDescription,
             parameters: parameters,
           },

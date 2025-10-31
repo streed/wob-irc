@@ -2,7 +2,9 @@ import * as irc from 'irc-framework';
 import { BotConfig, QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
 import { MessageQueue } from './message-queue';
-import { OllamaClient } from './ollama-client';
+import { BaseLLMClient } from './llm/base-llm';
+import { OllamaLLM } from './llm/ollama-llm';
+import { GroqLLM } from './llm/groq-llm';
 import { MessageHistoryDB } from './message-history-db';
 import { createMessageHistoryPlugin } from './builtin-plugins/message-history-plugin';
 
@@ -11,7 +13,7 @@ export class IRCBot {
   private config: BotConfig;
   private pluginLoader: PluginLoader;
   private messageQueue: MessageQueue;
-  private ollamaClient: OllamaClient;
+  private llmClient: BaseLLMClient;
   private messageHistory: MessageHistoryDB;
   private joinedChannels: Set<string> = new Set();
 
@@ -29,23 +31,55 @@ export class IRCBot {
       this.config.messageHistory?.dbPath
     );
     
-    // Initialize Ollama client (without plugin loader initially)
-    this.ollamaClient = new OllamaClient(
-      this.config.ollama.host,
-      this.config.ollama.model,
-      this.config.systemPrompt || this.getDefaultSystemPrompt(),
-      this.config.ollama.maxToolCallRounds,
-      this.config.chaosMode,
-      this.messageHistory,
-      this.config.ollama.maxContextTokens,
-      this.config.ollama.disableThinking === true
-    );
+    // Initialize LLM client (Ollama or Groq)
+    const provider = this.config.llmProvider || 'ollama';
+    if (provider === 'groq') {
+      const apiKey = this.config.groq?.apiKey || process.env.GROQ_API_KEY || '';
+      if (!apiKey) {
+        console.warn('[Config] GROQ_API_KEY not set; falling back to Ollama provider');
+        this.llmClient = new OllamaLLM(
+          this.config.ollama.host,
+          this.config.ollama.model,
+          this.config.systemPrompt || this.getDefaultSystemPrompt(),
+          this.config.ollama.maxToolCallRounds,
+          this.config.chaosMode,
+          this.messageHistory,
+          this.config.ollama.maxContextTokens,
+          this.config.ollama.disableThinking === true,
+        );
+      } else {
+        this.llmClient = new GroqLLM(
+          apiKey,
+          this.config.groq?.model || process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
+          this.config.systemPrompt || this.getDefaultSystemPrompt(),
+          {
+            baseUrl: this.config.groq?.baseUrl || process.env.GROQ_BASE_URL,
+            maxToolCallRounds: this.config.ollama.maxToolCallRounds,
+            chaosMode: this.config.chaosMode,
+            messageHistory: this.messageHistory,
+            maxContextTokens: this.config.ollama.maxContextTokens,
+            disableThinking: this.config.ollama.disableThinking === true,
+          },
+        );
+      }
+    } else {
+      this.llmClient = new OllamaLLM(
+        this.config.ollama.host,
+        this.config.ollama.model,
+        this.config.systemPrompt || this.getDefaultSystemPrompt(),
+        this.config.ollama.maxToolCallRounds,
+        this.config.chaosMode,
+        this.messageHistory,
+        this.config.ollama.maxContextTokens,
+        this.config.ollama.disableThinking === true,
+      );
+    }
     
     // Initialize plugin loader
     this.pluginLoader = new PluginLoader();
     
-    // Now set the plugin loader in OllamaClient for tool execution
-    this.ollamaClient.setPluginLoader(this.pluginLoader);
+    // Set the plugin loader in the LLM client for tool execution
+    this.llmClient.setPluginLoader(this.pluginLoader);
     
     // Initialize message queue
     this.messageQueue = new MessageQueue(
@@ -261,8 +295,8 @@ Style:
     try {
       console.log(`Processing ${messages.length} message(s) for ${channel}`);
       
-      // Get response from Ollama
-      const response = await this.ollamaClient.processMessages(channel, messages);
+      // Get response from LLM provider
+      const response = await this.llmClient.processMessages(channel, messages);
       
       if (response && response.trim()) {
         // Remove markdown formatting for IRC
@@ -297,7 +331,7 @@ Style:
         } else {
           console.log(`[IRC] Summarizing for multi-line output (<=3 lines) for ${channel}`);
           // Summarize to ~3 messages worth of characters
-          const summary = await this.ollamaClient.summarizeText(cleanedResponse, 1200);
+          const summary = await this.llmClient.summarizeText(cleanedResponse, 1200);
           const lines = this.splitMessage(summary, 400).slice(0, 3);
           try { console.log(`[IRC] Sending ${lines.length} line(s) to ${channel} (multi-line mode)`); } catch (_) {}
           for (const line of lines) {
@@ -317,7 +351,7 @@ Style:
         // Record only what we actually sent to IRC into the LLM's history,
         // excluding any hidden reasoning or markdown that wasn't sent.
         if (finalSentText) {
-          await this.ollamaClient.recordAssistantOutput(channel, finalSentText);
+          await this.llmClient.recordAssistantOutput(channel, finalSentText);
         }
       }
     } catch (error) {

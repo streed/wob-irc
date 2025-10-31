@@ -12,13 +12,27 @@ export function loadConfig(): BotConfig {
   if (fs.existsSync(configPath)) {
     console.log('Loading configuration from config.json');
     const configData = fs.readFileSync(configPath, 'utf-8');
-    return JSON.parse(configData);
+    const cfg = JSON.parse(configData) as BotConfig;
+
+    // Allow environment variables to override provider and Groq settings
+    if (process.env.LLM_PROVIDER) {
+      (cfg as any).llmProvider = process.env.LLM_PROVIDER as any;
+    }
+    // Ensure groq section exists if any GROQ_* env is provided
+    if (process.env.GROQ_API_KEY || process.env.GROQ_MODEL || process.env.GROQ_BASE_URL) {
+      (cfg as any).groq = (cfg as any).groq || {};
+      if (process.env.GROQ_API_KEY) (cfg as any).groq.apiKey = process.env.GROQ_API_KEY;
+      if (process.env.GROQ_MODEL) (cfg as any).groq.model = process.env.GROQ_MODEL;
+      if (process.env.GROQ_BASE_URL) (cfg as any).groq.baseUrl = process.env.GROQ_BASE_URL;
+    }
+    return cfg;
   }
 
   // Fall back to environment variables
   console.log('Loading configuration from environment variables');
   
   const config: BotConfig = {
+    llmProvider: (process.env.LLM_PROVIDER as any) || 'ollama',
     irc: {
       host: process.env.IRC_HOST || 'irc.libera.chat',
       port: parseInt(process.env.IRC_PORT || '6667'),
@@ -39,6 +53,11 @@ export function loadConfig(): BotConfig {
         ? parseInt(process.env.MAX_CONTEXT_TOKENS)
         : 4096,
       disableThinking: process.env.DISABLE_THINKING === 'true',
+    },
+    groq: {
+      apiKey: process.env.GROQ_API_KEY,
+      baseUrl: process.env.GROQ_BASE_URL,
+      model: process.env.GROQ_MODEL,
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,

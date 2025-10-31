@@ -22,6 +22,7 @@ export interface Plugin {
 }
 
 export interface BotConfig {
+  llmProvider?: 'ollama' | 'groq';
   irc: {
     host: string;
     port: number;
@@ -38,6 +39,11 @@ export interface BotConfig {
     embeddingModel?: string;
     maxContextTokens?: number; // Cap for chat context tokens
     disableThinking?: boolean; // When true, prevent models from emitting <think>/reasoning content
+  };
+  groq?: {
+    apiKey?: string;
+    baseUrl?: string;
+    model?: string;
   };
   messageDebounceMs: number;
   systemPrompt?: string;

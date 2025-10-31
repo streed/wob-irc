@@ -2,7 +2,7 @@ import { IRCBot } from './irc-bot';
 import { loadConfig } from './config';
 
 async function main() {
-  console.log('Starting Ollama IRC Bot...');
+  console.log('Starting IRC Bot...');
   console.log('='.repeat(50));
   
   try {
@@ -13,8 +13,14 @@ async function main() {
     console.log(`  IRC Nick: ${config.irc.nick}`);
     console.log(`  IRC Channels: ${config.irc.channels.join(', ')}`);
     console.log(`  IRC TLS: ${config.irc.tls || false}`);
-    console.log(`  Ollama Host: ${config.ollama.host}`);
-    console.log(`  Ollama Model: ${config.ollama.model}`);
+    console.log(`  LLM Provider: ${config.llmProvider || 'ollama'}`);
+    if ((config.llmProvider || 'ollama') === 'ollama') {
+      console.log(`  Ollama Host: ${config.ollama.host}`);
+      console.log(`  Ollama Model: ${config.ollama.model}`);
+    } else {
+      console.log(`  Groq Model: ${config.groq?.model || '(env GROQ_MODEL)'}`);
+      console.log(`  Groq Base URL: ${config.groq?.baseUrl || 'https://api.groq.com/openai/v1'}`);
+    }
     console.log(`  Message Debounce: ${config.messageDebounceMs}ms`);
     
     if (process.env.IRC_DEBUG === 'true') {
