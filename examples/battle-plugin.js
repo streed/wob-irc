@@ -59,6 +59,15 @@ const plugin = {
           'Earthshaker', 'Windrunner',
         ];
 
+        // Helper function to create character name
+        const createCharacterName = (name) => {
+          const title = titles[crypto.randomInt(0, titles.length)];
+          return `${title} ${name}`;
+        };
+
+        // Helper function to capitalize first letter
+        const capitalizeFirst = (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+
         // Parse context words or use generic names
         let char1Name, char2Name;
         
@@ -71,34 +80,26 @@ const plugin = {
           
           if (words.length >= 2) {
             // Use first two words from context
-            const title1 = titles[crypto.randomInt(0, titles.length)];
-            const title2 = titles[crypto.randomInt(0, titles.length)];
-            char1Name = `${title1} ${words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase()}`;
-            char2Name = `${title2} ${words[1].charAt(0).toUpperCase() + words[1].slice(1).toLowerCase()}`;
+            char1Name = createCharacterName(capitalizeFirst(words[0]));
+            char2Name = createCharacterName(capitalizeFirst(words[1]));
           } else if (words.length === 1) {
             // One word from context, one generic
-            const title1 = titles[crypto.randomInt(0, titles.length)];
-            const title2 = titles[crypto.randomInt(0, titles.length)];
             const genericName = genericNames[crypto.randomInt(0, genericNames.length)];
-            char1Name = `${title1} ${words[0].charAt(0).toUpperCase() + words[0].slice(1).toLowerCase()}`;
-            char2Name = `${title2} ${genericName}`;
+            char1Name = createCharacterName(capitalizeFirst(words[0]));
+            char2Name = createCharacterName(genericName);
           } else {
             // No valid words, use generic names
-            const title1 = titles[crypto.randomInt(0, titles.length)];
-            const title2 = titles[crypto.randomInt(0, titles.length)];
             const name1 = genericNames[crypto.randomInt(0, genericNames.length)];
             const name2 = genericNames[crypto.randomInt(0, genericNames.length)];
-            char1Name = `${title1} ${name1}`;
-            char2Name = `${title2} ${name2}`;
+            char1Name = createCharacterName(name1);
+            char2Name = createCharacterName(name2);
           }
         } else {
           // No context provided, use generic fantasy names
-          const title1 = titles[crypto.randomInt(0, titles.length)];
-          const title2 = titles[crypto.randomInt(0, titles.length)];
           const name1 = genericNames[crypto.randomInt(0, genericNames.length)];
           const name2 = genericNames[crypto.randomInt(0, genericNames.length)];
-          char1Name = `${title1} ${name1}`;
-          char2Name = `${title2} ${name2}`;
+          char1Name = createCharacterName(name1);
+          char2Name = createCharacterName(name2);
         }
 
         // Assign random weapons
