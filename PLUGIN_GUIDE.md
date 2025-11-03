@@ -318,6 +318,7 @@ execute: async (toolName, parameters) => {
 - ✓ **UUID Generator**: Generate UUIDs v4 (`uuid-generator-plugin.js`)
 - ✓ **Weather**: Get weather forecasts (`weather-plugin.js`)
 - ✓ **Web Search**: Search the web using Ollama API (`ollama-search-plugin.js`)
+- ✓ **Battle System**: Create 3-round battles between randomly generated characters (`battle-plugin.js`)
 
 **Additional Ideas**:
 - **GitHub**: Query GitHub repositories, issues, PRs

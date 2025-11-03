@@ -217,6 +217,9 @@ See the `examples/` directory for sample plugins:
 - `time-plugin.js` - Get current time in different timezones
 - `weather-plugin.js` - Get weather information and forecasts using wttr.in API
 
+**Entertainment Plugins:**
+- `battle-plugin.js` - Create epic 3-round battles between randomly generated characters with context-based names and random weapons
+
 **AI-Enhanced Plugins (require API key):**
 - `ollama-search-plugin.js` - Search the web using Ollama's cloud API
 - `ollama-fetch-plugin.js` - Fetch content from specific URLs using Ollama's cloud API
@@ -239,6 +242,9 @@ cp examples/dictionary-plugin.js plugins/
 cp examples/ip-lookup-plugin.js plugins/
 cp examples/time-plugin.js plugins/
 cp examples/weather-plugin.js plugins/
+
+# Entertainment plugins (no API key required)
+cp examples/battle-plugin.js plugins/
 
 # AI-enhanced plugins (require OLLAMA_API_KEY env variable)
 cp examples/ollama-search-plugin.js plugins/
@@ -309,6 +315,30 @@ Example interactions:
 
 <user> bot, shorten this URL: https://www.example.com/very/long/url/path/to/resource
 <ollama-bot> Shortened URL: https://tinyurl.com/abc123 → https://www.example.com/very/long/url/path/to/resource
+
+<user> bot, start a battle!
+<ollama-bot> ⚔️  BATTLE ROYALE ⚔️
+Dragon Slayer wielding a legendary sword VS Thunder Knight wielding enchanted arrows!
+
+=== ROUND 1 ===
+Dragon Slayer attacks with a legendary sword for 22 damage!
+Thunder Knight: 78 HP remaining
+Thunder Knight counterattacks with enchanted arrows for 15 damage!
+Dragon Slayer: 85 HP remaining
+
+=== ROUND 2 ===
+Dragon Slayer attacks with a legendary sword for 28 damage!
+Thunder Knight: 50 HP remaining
+Thunder Knight counterattacks with enchanted arrows for 31 damage!
+Dragon Slayer: 54 HP remaining
+
+=== ROUND 3 ===
+Dragon Slayer attacks with a legendary sword for 33 damage!
+Thunder Knight: 17 HP remaining
+Thunder Knight counterattacks with enchanted arrows for 19 damage!
+Dragon Slayer: 35 HP remaining
+
+⏰ TIME'S UP! Dragon Slayer wins with 35 HP remaining!
 
 <user> bot, search for latest news on artificial intelligence
 <ollama-bot> Search result for "latest news on artificial intelligence": [summarized top result from web search]
