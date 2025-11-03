@@ -207,6 +207,32 @@ Fetch and extract content from URLs using Ollama's cloud API.
 **Tools:**
 - `fetch_url` - Fetch and extract content from a URL
 
+## Entertainment Plugins
+
+### battle-plugin.js
+Generate two random fantasy characters and simulate a turn-based combat encounter.
+
+**Tools:**
+- `start_battle` - Generate two random characters and simulate a 3-round combat with streaming output
+
+**Features:**
+- Character names generated from conversation context via `context_words` parameter (e.g., "python, javascript" → "Champion Python" vs "Knight Javascript")
+- Falls back to generic fantasy names when no context provided
+- Random weapon assignment from pool of 18 legendary weapons (swords, staffs, arrows, etc.)
+- Turn-based combat: 100 HP starting health, 10-39 damage per attack, 3 rounds maximum
+- Victory determined by knockout or highest remaining HP after 3 rounds
+
+**Example:**
+```
+<user> bot, simulate a battle between fire and ice
+<bot> ⚔️  BATTLE COMMENCES! ⚔️
+Champion Fire wielding Dragon Fang Spear
+    VS
+Warrior Ice wielding Frost Axe of Winter
+[combat rounds with damage and HP updates]
+🏆 WINNER: Champion Fire (42/100 HP remaining)
+```
+
 ## Installation
 
 To use any of these plugins, copy them to the `plugins/` directory:
@@ -221,6 +247,7 @@ cp examples/weather-plugin.js plugins/
 cp examples/time-plugin.js plugins/
 cp examples/currency-plugin.js plugins/
 cp examples/dictionary-plugin.js plugins/
+cp examples/battle-plugin.js plugins/
 
 # Or copy all plugins at once
 cp examples/*-plugin.js plugins/
