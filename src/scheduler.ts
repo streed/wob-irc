@@ -317,10 +317,11 @@ export class Scheduler {
       const t = new Date(now.getTime());
       t.setSeconds(0, 0);
       t.setHours(spec.timeOfDay.hour, spec.timeOfDay.minute, 0, 0);
-      if (t.getTime() <= now.getTime()) {
+      if (!Number.isFinite(t.getTime()) || t.getTime() <= now.getTime()) {
         t.setDate(t.getDate() + 1);
       }
-      return t.getTime();
+      const ts = t.getTime();
+      return Number.isFinite(ts) ? ts : now.getTime() + 60_000;
     }
     if (spec.kind === 'weekly' && spec.timeOfDay != null && spec.dayOfWeek != null) {
       const t = new Date(now.getTime());
@@ -328,9 +329,10 @@ export class Scheduler {
       t.setHours(spec.timeOfDay.hour, spec.timeOfDay.minute, 0, 0);
       const nowDow = t.getDay();
       let addDays = (spec.dayOfWeek - nowDow + 7) % 7;
-      if (addDays === 0 && t.getTime() <= now.getTime()) addDays = 7;
+      if (addDays === 0 && (!Number.isFinite(t.getTime()) || t.getTime() <= now.getTime())) addDays = 7;
       t.setDate(t.getDate() + addDays);
-      return t.getTime();
+      const ts = t.getTime();
+      return Number.isFinite(ts) ? ts : now.getTime() + 60_000;
     }
     if (spec.kind === 'cron' && spec.cronExpr) {
       return computeNextRunCron(spec.cronExpr, now);
@@ -349,10 +351,10 @@ export function parseTimeOfDay(text: string): { hour: number; minute: number } {
   let hour = 0, minute = 0;
   if (core.includes(':')) {
     const [h, m] = core.split(':');
-    hour = parseInt(h, 10);
-    minute = parseInt(m, 10) || 0;
+    hour = Number.parseInt(h, 10);
+    minute = Number.parseInt(m, 10);
   } else {
-    hour = parseInt(core, 10);
+    hour = Number.parseInt(core, 10);
     minute = 0;
   }
   if (ampm) {
@@ -363,6 +365,8 @@ export function parseTimeOfDay(text: string): { hour: number; minute: number } {
       if (hour !== 12) hour += 12;
     }
   }
+  if (Number.isNaN(hour)) hour = 0;
+  if (Number.isNaN(minute)) minute = 0;
   hour = Math.max(0, Math.min(23, hour));
   minute = Math.max(0, Math.min(59, minute));
   return { hour, minute };
