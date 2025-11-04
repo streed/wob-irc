@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 
 export type JobMode = 'tool' | 'prompt';
 
-export type ScheduleKind = 'interval' | 'daily' | 'weekly';
+export type ScheduleKind = 'interval' | 'daily' | 'weekly' | 'cron';
 
 export interface ScheduleSpec {
   kind: ScheduleKind;
@@ -12,6 +12,8 @@ export interface ScheduleSpec {
   timeOfDay?: { hour: number; minute: number };
   // day of week for kind = weekly (0=Sunday..6=Saturday)
   dayOfWeek?: number;
+  // cron expression for kind=cron (5 fields: m h dom mon dow)
+  cronExpr?: string;
 }
 
 export interface CreateJobOptions {
@@ -219,9 +221,21 @@ export class Scheduler {
   // - "every day at 5pm" / "every day at 17:00"
   // - "every monday at 9am"
   parseScheduleText(text: string): ScheduleSpec {
-    const s = (text || '').trim().toLowerCase();
+    const raw = (text || '').trim();
+    const s = raw.toLowerCase();
+
+    // Accept explicit cron expressions
+    const cronPrefix = s.match(/^cron[:\s]+(.+)$/);
+    if (cronPrefix) {
+      const expr = cronPrefix[1].trim();
+      return { kind: 'cron', cronExpr: expr };
+    }
+    if (looksLikeCron(raw)) {
+      return { kind: 'cron', cronExpr: raw };
+    }
+
     if (!s.startsWith('every')) {
-      // Default to every hour if not specified
+      // Default to every hour if nothing recognizable
       return { kind: 'interval', intervalMinutes: 60 };
     }
 
@@ -245,7 +259,7 @@ export class Scheduler {
     const m2 = s.match(/^every\s+day(?:\s+at\s+(.+))?$/);
     if (m2) {
       const timeStr = (m2[1] || '09:00').trim();
-      const tod = this.parseTimeOfDay(timeStr);
+      const tod = parseTimeOfDay(timeStr);
       return { kind: 'daily', timeOfDay: tod };
     }
 
@@ -253,13 +267,32 @@ export class Scheduler {
     const m3 = s.match(/^every\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s+at\s+(.+)$/);
     if (m3) {
       const day = this.parseWeekday(m3[1]);
-      const tod = this.parseTimeOfDay(m3[2]);
+      const tod = parseTimeOfDay(m3[2]);
       return { kind: 'weekly', dayOfWeek: day, timeOfDay: tod };
+    }
+
+    // every month on the 15th at 09:00
+    const m4 = s.match(/^every\s+month\s+on\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\s+at\s+(.+)$/);
+    if (m4) {
+      const day = Math.max(1, Math.min(31, parseInt(m4[1], 10)));
+      const tod = parseTimeOfDay(m4[2]);
+      const expr = `${tod.minute} ${tod.hour} ${day} * *`;
+      return { kind: 'cron', cronExpr: expr };
+    }
+
+    // every year on june 1 at 10am
+    const m5 = s.match(/^every\s+year\s+on\s+([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?\s+at\s+(.+)$/);
+    if (m5) {
+      const mon = parseMonth(m5[1]);
+      const day = Math.max(1, Math.min(31, parseInt(m5[2], 10)));
+      const tod = parseTimeOfDay(m5[3]);
+      const expr = `${tod.minute} ${tod.hour} ${day} ${mon} *`;
+      return { kind: 'cron', cronExpr: expr };
     }
 
     // Fallback: try just a time -> daily at time
     if (/\d/.test(s)) {
-      const tod = this.parseTimeOfDay(s);
+      const tod = parseTimeOfDay(s);
       return { kind: 'daily', timeOfDay: tod };
     }
 
@@ -267,32 +300,7 @@ export class Scheduler {
     return { kind: 'interval', intervalMinutes: 60 };
   }
 
-  private parseTimeOfDay(s: string): { hour: number; minute: number } {
-    const str = s.trim().toLowerCase();
-    // Formats: 17:00, 5pm, 5:30pm, 05:30, 12am
-    const ampm = str.match(/(am|pm)$/);
-    let core = str.replace(/\s*(am|pm)\s*$/, '');
-    let hour = 0, minute = 0;
-    if (core.includes(':')) {
-      const [h, m] = core.split(':');
-      hour = parseInt(h, 10);
-      minute = parseInt(m, 10) || 0;
-    } else {
-      hour = parseInt(core, 10);
-      minute = 0;
-    }
-    if (ampm) {
-      const ap = ampm[1];
-      if (ap === 'am') {
-        if (hour === 12) hour = 0;
-      } else {
-        if (hour !== 12) hour += 12;
-      }
-    }
-    hour = Math.max(0, Math.min(23, hour));
-    minute = Math.max(0, Math.min(59, minute));
-    return { hour, minute };
-  }
+  // parseWeekday remains; time-of-day is provided by a module-level helper
 
   private parseWeekday(s: string): number {
     const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
@@ -324,7 +332,168 @@ export class Scheduler {
       t.setDate(t.getDate() + addDays);
       return t.getTime();
     }
+    if (spec.kind === 'cron' && spec.cronExpr) {
+      return computeNextRunCron(spec.cronExpr, now);
+    }
     // Fallback: 1 hour later
     return now.getTime() + 60_000;
   }
 }
+
+// Exported helper for plugins needing to parse times politely
+export function parseTimeOfDay(text: string): { hour: number; minute: number } {
+  const str = String(text || '').trim().toLowerCase();
+  // Formats: 17:00, 5pm, 5:30pm, 05:30, 12am
+  const ampm = str.match(/(am|pm)$/);
+  let core = str.replace(/\s*(am|pm)\s*$/, '');
+  let hour = 0, minute = 0;
+  if (core.includes(':')) {
+    const [h, m] = core.split(':');
+    hour = parseInt(h, 10);
+    minute = parseInt(m, 10) || 0;
+  } else {
+    hour = parseInt(core, 10);
+    minute = 0;
+  }
+  if (ampm) {
+    const ap = ampm[1];
+    if (ap === 'am') {
+      if (hour === 12) hour = 0;
+    } else {
+      if (hour !== 12) hour += 12;
+    }
+  }
+  hour = Math.max(0, Math.min(23, hour));
+  minute = Math.max(0, Math.min(59, minute));
+  return { hour, minute };
+}
+
+// ---- Minimal cron parsing helpers ----
+interface CronSpec { minutes: Set<number>; hours: Set<number>; dom: Set<number>; months: Set<number>; dow: Set<number>; }
+
+function computeNextRunCron(expr: string, from: Date): number {
+  const cron = parseCron(expr);
+  const t = new Date(from.getTime());
+  t.setSeconds(0, 0);
+  t.setMinutes(t.getMinutes() + 1);
+  const limit = new Date(from.getTime());
+  limit.setFullYear(limit.getFullYear() + 1);
+
+  while (t <= limit) {
+    const minute = t.getMinutes();
+    const hour = t.getHours();
+    const dom = t.getDate();
+    const mon = t.getMonth() + 1;
+    const dow = t.getDay();
+
+    if (cron.minutes.has(minute) &&
+        cron.hours.has(hour) &&
+        cron.months.has(mon) &&
+        cron.dom.has(dom) &&
+        cron.dow.has(dow)) {
+      return t.getTime();
+    }
+    t.setMinutes(t.getMinutes() + 1);
+  }
+  return from.getTime() + 24 * 60 * 60 * 1000;
+}
+
+function looksLikeCron(raw: string): boolean {
+  const parts = raw.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+  const okToken = (p: string) => /^(\*|\d+|[a-zA-Z]+)([\/,\-](\*|\d+|[a-zA-Z]+))*$/.test(p);
+  return parts.every(okToken);
+}
+
+function parseCron(expr: string): CronSpec {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) throw new Error(`Invalid cron expression (need 5 fields): ${expr}`);
+  const [minF, hourF, domF, monF, dowF] = parts;
+  return {
+    minutes: parseCronField(minF, 0, 59),
+    hours: parseCronField(hourF, 0, 23),
+    dom: parseCronField(domF, 1, 31),
+    months: parseCronField(monF, 1, 12, monthMap),
+    dow: parseCronField(dowF, 0, 6, dayMap),
+  };
+}
+
+function parseCronField(field: string, min: number, max: number, names?: Record<string, number>): Set<number> {
+  const result = new Set<number>();
+  const add = (v: number) => { if (v >= min && v <= max) result.add(v); };
+  const expandRange = (start: number, end: number, step: number) => {
+    if (end < start) return;
+    for (let v = start; v <= end; v += step) add(v);
+  };
+
+  const norm = (s: string) => s.trim().toLowerCase();
+  const translate = (token: string): number | null => {
+    const n = Number(token);
+    if (!Number.isNaN(n)) return n;
+    if (names) {
+      const mapVal = names[norm(token)];
+      if (mapVal !== undefined) return mapVal;
+    }
+    return null;
+  };
+
+  for (const part of field.split(',')) {
+    const p = part.trim();
+    if (p === '*') {
+      expandRange(min, max, 1);
+      continue;
+    }
+    const stepIdx = p.indexOf('/');
+    let base = p;
+    let step = 1;
+    if (stepIdx >= 0) {
+      base = p.slice(0, stepIdx);
+      const stepVal = Number(p.slice(stepIdx + 1));
+      if (!Number.isNaN(stepVal) && stepVal > 0) step = stepVal;
+    }
+    if (base.includes('-')) {
+      const [a, b] = base.split('-');
+      const start = translate(a);
+      const end = translate(b);
+      if (start == null || end == null) continue;
+      expandRange(start, end, step);
+      continue;
+    }
+    const single = translate(base);
+    if (single != null) add(single);
+  }
+
+  return result.size ? result : new Set<number>();
+}
+
+function parseMonth(s: string): number {
+  const n = monthMap[s.toLowerCase()];
+  if (!n) throw new Error(`Invalid month: ${s}`);
+  return n;
+}
+
+const monthMap: Record<string, number> = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
+const dayMap: Record<string, number> = {
+  sun: 0, sunday: 0,
+  mon: 1, monday: 1,
+  tue: 2, tuesday: 2,
+  wed: 3, wednesday: 3,
+  thu: 4, thursday: 4,
+  fri: 5, friday: 5,
+  sat: 6, saturday: 6,
+  '7': 0,
+};

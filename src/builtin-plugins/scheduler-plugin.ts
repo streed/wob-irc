@@ -1,5 +1,5 @@
 import { Plugin } from "../types";
-import { Scheduler, ScheduleSpec } from "../scheduler";
+import { Scheduler, ScheduleSpec, parseTimeOfDay } from "../scheduler";
 
 function formatSpec(spec: ScheduleSpec): string {
   switch (spec.kind) {
@@ -9,6 +9,10 @@ function formatSpec(spec: ScheduleSpec): string {
       return `every day at ${pad(spec.timeOfDay!.hour)}:${pad(spec.timeOfDay!.minute)}`;
     case 'weekly':
       return `every ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][spec.dayOfWeek!]} at ${pad(spec.timeOfDay!.hour)}:${pad(spec.timeOfDay!.minute)}`;
+    case 'cron':
+      return `cron ${spec.cronExpr}`;
+    default:
+      return 'custom schedule';
   }
 }
 
@@ -27,6 +31,7 @@ export function createSchedulerPlugin(scheduler: Scheduler): Plugin {
           properties: {
             channel: { type: 'string', description: 'IRC channel to post result in (default: current channel).' },
             schedule: { type: 'string', description: 'Human schedule: e.g., "every hour", "every day at 5pm", "every monday at 9am".' },
+            cron: { type: 'string', description: 'Cron expression for advanced schedules (m h dom mon dow). Example: "*/30 9-17 * * mon-fri".' },
             mode: { type: 'string', description: "'tool' to run a plugin tool, 'prompt' to post natural command" , enum: ['tool','prompt'] },
             tool_name: { type: 'string', description: 'Tool function name to call (when mode = tool).' },
             parameters: { type: 'object', description: 'JSON parameters object for the tool (when mode = tool).' },
@@ -87,23 +92,22 @@ export function createSchedulerPlugin(scheduler: Scheduler): Plugin {
           if (mode === 'tool' && !parameters.tool_name) return 'Error: tool_name is required for mode=tool';
           if (mode === 'prompt' && !parameters.command_text) return 'Error: command_text is required for mode=prompt';
 
-          // Build spec: prefer structured overrides
+          // Build spec: prefer explicit cron, then structured, otherwise natural text
           let spec: ScheduleSpec | undefined;
+          if (typeof parameters.cron === 'string' && parameters.cron.trim()) {
+            spec = { kind: 'cron', cronExpr: String(parameters.cron).trim() } as any;
+          }
           if (typeof parameters.interval_minutes === 'number' && parameters.interval_minutes > 0) {
             spec = { kind: 'interval', intervalMinutes: Math.max(1, Math.floor(parameters.interval_minutes)) };
           } else if (parameters.weekly_day && parameters.daily_time) {
             const dow = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'].indexOf(String(parameters.weekly_day).toLowerCase());
             if (dow < 0) return `Error: invalid weekly_day ${parameters.weekly_day}`;
-            const tmp = new Scheduler(':memory:', { executeTool: async()=>'', sendMessage: async()=>{}, submitPrompt: async()=>{} });
-            spec = { kind: 'weekly', dayOfWeek: dow, timeOfDay: (tmp as any).parseTimeOfDay(parameters.daily_time) };
-            tmp.close();
+            spec = { kind: 'weekly', dayOfWeek: dow, timeOfDay: parseTimeOfDay(parameters.daily_time) } as any;
           } else if (parameters.daily_time) {
-            const tmp = new Scheduler(':memory:', { executeTool: async()=>'', sendMessage: async()=>{}, submitPrompt: async()=>{} });
-            spec = { kind: 'daily', timeOfDay: (tmp as any).parseTimeOfDay(parameters.daily_time) };
-            tmp.close();
+            spec = { kind: 'daily', timeOfDay: parseTimeOfDay(parameters.daily_time) } as any;
           }
 
-          const scheduleText: string | undefined = parameters.schedule;
+          const scheduleText: string | undefined = parameters.schedule || parameters.cron;
 
           const { id, nextRun, spec: savedSpec } = scheduler.scheduleJob({
             channel,
@@ -144,4 +148,3 @@ export function createSchedulerPlugin(scheduler: Scheduler): Plugin {
     },
   };
 }
-
