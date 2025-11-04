@@ -18,7 +18,21 @@ export interface Plugin {
   name: string;
   description: string;
   tools: PluginTool[];
-  execute: (toolName: string, parameters: Record<string, any>) => Promise<string>;
+  execute: (
+    toolName: string,
+    parameters: Record<string, any>,
+    ctx?: PluginExecutionContext
+  ) => Promise<string>;
+}
+
+// Context passed to plugins during tool execution to enable real-time updates
+export interface PluginExecutionContext {
+  // The IRC channel where the current tool call originates (LLM conversation channel)
+  channel: string;
+  // Send a message to any IRC channel (plugins can stream progress)
+  say: (channel: string, message: string) => Promise<void>;
+  // The IRC nick of the user who triggered this tool call (actor)
+  actorNick?: string;
 }
 
 export interface BotConfig {

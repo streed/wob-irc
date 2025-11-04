@@ -1,14 +1,22 @@
 import * as fs from "fs";
 import * as path from "path";
-import { Plugin } from "./types";
+import { Plugin, PluginExecutionContext } from "./types";
 import { sanitizeUnicode } from "./unicode-sanitizer";
 
 export class PluginLoader {
   private plugins: Map<string, Plugin> = new Map();
   private pluginsDir: string;
+  private messenger?: (channel: string, message: string) => Promise<void>;
 
   constructor(pluginsDir: string = "./plugins") {
     this.pluginsDir = path.resolve(pluginsDir);
+  }
+
+  /**
+   * Provide a messenger that plugins can use to send IRC messages.
+   */
+  setMessenger(fn: (channel: string, message: string) => Promise<void>): void {
+    this.messenger = fn;
   }
 
   /**
@@ -80,6 +88,7 @@ export class PluginLoader {
   async executeToolCall(
     toolName: string,
     parameters: Record<string, any>,
+    runtimeCtx?: { channel?: string; actorNick?: string }
   ): Promise<string> {
     console.log(
       `Executing tool: ${toolName} with parameters: ${JSON.stringify(parameters)}`,
@@ -88,7 +97,17 @@ export class PluginLoader {
       const tool = plugin.tools.find((t) => t.name === toolName);
       if (tool) {
         console.log(`Executing tool: ${toolName} from plugin: ${plugin.name}`);
-        const result = await plugin.execute(toolName, parameters);
+        const ctx: PluginExecutionContext | undefined = this.messenger && runtimeCtx?.channel
+          ? {
+              channel: runtimeCtx.channel,
+              say: async (channel: string, message: string) => {
+                if (!this.messenger) return;
+                await this.messenger(channel, message);
+              },
+              actorNick: runtimeCtx?.actorNick,
+            }
+          : undefined;
+        const result = await plugin.execute(toolName, parameters, ctx);
         // Sanitize Unicode from tool results
         return sanitizeUnicode(result);
       }

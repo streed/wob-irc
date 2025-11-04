@@ -181,6 +181,8 @@ export abstract class BaseLLMClient {
 
         history.push(response.message);
 
+        // Determine actor nick for this turn (last user message in batch)
+        const actorNick = (messages && messages.length > 0) ? String(messages[messages.length - 1].nick || '') : '';
         for (let idx = 0; idx < response.message.tool_calls.length; idx++) {
           const toolCall = response.message.tool_calls[idx] as any;
           if (!this.pluginLoader) {
@@ -197,7 +199,8 @@ export abstract class BaseLLMClient {
 
           const toolResult = await this.pluginLoader.executeToolCall(
             toolCall.function.name,
-            parsedArgs
+            parsedArgs,
+            { channel, actorNick }
           );
 
           const toolOut = this.capForHistory(String(toolResult ?? ''), this.TOOL_OUT_MAX_CHARS, true);

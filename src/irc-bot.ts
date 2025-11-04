@@ -7,6 +7,8 @@ import { OllamaLLM } from './llm/ollama-llm';
 import { GroqLLM } from './llm/groq-llm';
 import { MessageHistoryDB } from './message-history-db';
 import { createMessageHistoryPlugin } from './builtin-plugins/message-history-plugin';
+import { Scheduler } from './scheduler';
+import { createSchedulerPlugin } from './builtin-plugins/scheduler-plugin';
 
 export class IRCBot {
   private client: irc.Client;
@@ -16,6 +18,7 @@ export class IRCBot {
   private llmClient: BaseLLMClient;
   private messageHistory: MessageHistoryDB;
   private joinedChannels: Set<string> = new Set();
+  private scheduler: Scheduler;
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -77,14 +80,36 @@ export class IRCBot {
     
     // Initialize plugin loader
     this.pluginLoader = new PluginLoader();
+    // Provide messenger so plugins can stream updates to IRC in real time
+    this.pluginLoader.setMessenger(async (channel: string, message: string) => {
+      await this.sendIrcMessage(channel, message);
+    });
     
     // Set the plugin loader in the LLM client for tool execution
     this.llmClient.setPluginLoader(this.pluginLoader);
-    
+
     // Initialize message queue
     this.messageQueue = new MessageQueue(
       this.config.messageDebounceMs,
       this.processQueuedMessages.bind(this)
+    );
+
+    // Initialize persistent scheduler (DB alongside message-history.db)
+    this.scheduler = new Scheduler(
+      this.config.messageHistory?.dbPath ? this.config.messageHistory.dbPath.replace(/\.db$/, '-jobs.db') : 'scheduled-jobs.db',
+      {
+        executeTool: async (toolName, parameters, runtime) => {
+          return await this.pluginLoader.executeToolCall(toolName, parameters, { channel: runtime.channel, actorNick: runtime.actorNick });
+        },
+        sendMessage: async (channel, message) => {
+          await this.sendIrcMessage(channel, message);
+        },
+        submitPrompt: async (channel, actorNick, text) => {
+          // Feed into normal message handling pipeline as if actor posted it
+          this.messageQueue.addMessage(channel, actorNick || 'scheduler', text);
+        },
+        tickIntervalMs: 30_000,
+      }
     );
   }
 
@@ -103,6 +128,18 @@ Tool policy:
 - Fill required parameters; use sensible defaults (e.g., limit≈20) and cap large outputs
 - After a tool response, synthesize a brief answer; do not paste long raw results
 - If a question is about recent chat context, first try message-history tools
+- If asked to simulate a fight/battle and a 'battle' tool is available, call it (e.g., start_battle) and let the tool stream updates
+
+RPG policy:
+- When user intent is RPG-like (create hero, travel, explore, fight, shop, inventory, memory), prefer calling 'battle' plugin tools:
+  - create_character / get_character / list_characters
+  - travel_to / get_location
+  - explore_dungeon (use current location when relevant)
+  - battle (<=3 rounds always; allow tool to stream with pacing; do NOT narrate long summaries yourself)
+  - inspect_inventory / shop_buy / use_item / equip_item / unequip_item / get_equipment
+  - quest_board / accept_quest_template / start_quest / update_quest / complete_quest / list_quests / list_achievements
+  - append_memory / get_memory for in-character flavor
+- Keep narration concise and allow the tool to stream a few lines; avoid extra commentary.
 
 Message history tools (how to choose):
 - get_recent_messages: Last N lines; use for “what were we discussing?”
@@ -121,6 +158,7 @@ Style:
   async start(): Promise<void> {
     // Register built-in plugins
     await this.pluginLoader.registerBuiltinPlugin(createMessageHistoryPlugin(this.messageHistory));
+    await this.pluginLoader.registerBuiltinPlugin(createSchedulerPlugin(this.scheduler));
     
     // Load plugins
     await this.pluginLoader.loadPlugins();
@@ -147,6 +185,8 @@ Style:
     });
     
     console.log('Connection initiated, waiting for server response...');
+    // Start scheduler after boot; it runs irrespective of IRC connection
+    this.scheduler.start();
   }
 
   private setupEventHandlers(): void {
@@ -452,6 +492,26 @@ Style:
     return lines;
   }
 
+  // Send a message to IRC and record to history; used by plugins for streaming
+  private async sendIrcMessage(channel: string, text: string): Promise<void> {
+    if (!text) return;
+    const cleaned = this.removeMarkdown(this.removeReasoningPreambles(String(text))).trim();
+    if (!cleaned) return;
+    const lines = this.splitMessage(cleaned, 400).slice(0, 5); // reasonable cap for plugin bursts
+    for (const line of lines) {
+      const out = line.trim();
+      if (!out) continue;
+      try { console.log(`[PLUGIN->${channel}] ${out}`); } catch (_) {}
+      this.client.say(channel, out);
+      try {
+        const p = this.messageHistory.addMessage(channel, this.client.user.nick, out);
+        if (p instanceof Promise) { await p.catch((e: any) => console.error('Error recording plugin message:', e)); }
+      } catch (_) {}
+      // small pacing to avoid spam; not strictly required
+      await new Promise(r => setTimeout(r, 10));
+    }
+  }
+
   async shutdown(): Promise<void> {
     console.log('[IRC] Shutting down bot...');
     
@@ -462,6 +522,10 @@ Style:
     // Close database
     console.log('[IRC] Closing message history database...');
     this.messageHistory.close();
+
+    // Stop scheduler
+    console.log('[IRC] Stopping scheduler...');
+    this.scheduler.close();
     
     // Quit IRC
     console.log('[IRC] Sending QUIT command...');
