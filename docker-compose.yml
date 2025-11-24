@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  wob-irc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wob-irc-bot
+    restart: unless-stopped
+    environment:
+      # IRC Configuration
+      IRC_HOST: ${IRC_HOST:-irc.libera.chat}
+      IRC_PORT: ${IRC_PORT:-6667}
+      IRC_NICK: ${IRC_NICK:-ollama-bot}
+      IRC_USERNAME: ${IRC_USERNAME:-ollama}
+      IRC_REALNAME: ${IRC_REALNAME:-Ollama IRC Bot}
+      IRC_CHANNELS: ${IRC_CHANNELS:-#test}
+      IRC_TLS: ${IRC_TLS:-false}
+      IRC_DEBUG: ${IRC_DEBUG:-false}
+      
+      # Ollama Configuration
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://ollama:11434}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}  # For cloud models
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      MAX_CONTEXT_TOKENS: ${MAX_CONTEXT_TOKENS:-4096}
+      MAX_TOOL_CALL_ROUNDS: ${MAX_TOOL_CALL_ROUNDS:-10}
+      DISABLE_THINKING: ${DISABLE_THINKING:-false}
+      
+      # Bot Configuration
+      MESSAGE_DEBOUNCE_MS: ${MESSAGE_DEBOUNCE_MS:-2000}
+      SYSTEM_PROMPT: ${SYSTEM_PROMPT:-You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.}
+      
+      # Database Configuration
+      MESSAGE_HISTORY_DB_PATH: /app/data/message-history.db
+      
+      # Chaos Mode Configuration
+      CHAOS_MODE_ENABLED: ${CHAOS_MODE_ENABLED:-false}
+      CHAOS_MODE_PROBABILITY: ${CHAOS_MODE_PROBABILITY:-0.1}
+    volumes:
+      # Use bind mount for persistent database storage (maps to host directory)
+      - ./data:/app/data
+      # Mount config file if needed
+      - ./config.json:/app/config.json:ro
+    networks:
+      - irc-bot-network
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    restart: unless-stopped
+    environment:
+      # Pass model names to auto-pull on startup
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+    volumes:
+      # Use bind mount for Ollama data
+      - ./ollama-data:/root/.ollama
+      # Mount the entrypoint script
+      - ./ollama-entrypoint.sh:/entrypoint.sh:ro
+    ports:
+      - "11434:11434"
+    networks:
+      - irc-bot-network
+    entrypoint: ["/entrypoint.sh"]
+    # Uncomment the following lines if you want to use GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  irc-bot-network:
+    driver: bridge

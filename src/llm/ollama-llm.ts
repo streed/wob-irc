@@ -12,7 +12,8 @@ export class OllamaLLM extends BaseLLMClient {
     chaosMode?: { enabled: boolean; probability: number },
     messageHistory?: any,
     maxContextTokens?: number,
-    disableThinking?: boolean
+    disableThinking?: boolean,
+    apiKey?: string
   ) {
     super(
       'Ollama',
@@ -24,7 +25,14 @@ export class OllamaLLM extends BaseLLMClient {
       maxContextTokens,
       disableThinking,
     );
-    this.ollama = new Ollama({ host });
+    // Configure Ollama with API key if provided (for cloud models)
+    const config: any = { host };
+    if (apiKey) {
+      config.headers = {
+        'Authorization': `Bearer ${apiKey}`
+      };
+    }
+    this.ollama = new Ollama(config);
   }
 
   protected async sendChat(messages: LLMChatMessage[], tools?: LLMTool[] | undefined): Promise<LLMChatResponse> {

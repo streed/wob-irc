@@ -27,9 +27,17 @@ export class OllamaClient {
     chaosMode?: { enabled: boolean; probability: number },
     messageHistory?: any,
     maxContextTokens?: number,
-    disableThinking?: boolean
+    disableThinking?: boolean,
+    apiKey?: string
   ) {
-    this.ollama = new Ollama({ host });
+    // Configure Ollama with API key if provided (for cloud models)
+    const config: any = { host };
+    if (apiKey) {
+      config.headers = {
+        'Authorization': `Bearer ${apiKey}`
+      };
+    }
+    this.ollama = new Ollama(config);
     this.model = model;
     this.systemPrompt = systemPrompt;
     this.maxToolCallRounds = maxToolCallRounds || 10;

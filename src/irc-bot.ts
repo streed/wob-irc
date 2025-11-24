@@ -31,7 +31,8 @@ export class IRCBot {
     this.messageHistory = new MessageHistoryDB(
       this.config.ollama.host,
       this.config.ollama.embeddingModel || 'nomic-embed-text:v1.5',
-      this.config.messageHistory?.dbPath
+      this.config.messageHistory?.dbPath,
+      this.config.ollama.apiKey
     );
     
     // Initialize LLM client (Ollama or Groq)
@@ -49,6 +50,7 @@ export class IRCBot {
           this.messageHistory,
           this.config.ollama.maxContextTokens,
           this.config.ollama.disableThinking === true,
+          this.config.ollama.apiKey,
         );
       } else {
         this.llmClient = new GroqLLM(
@@ -75,6 +77,7 @@ export class IRCBot {
         this.messageHistory,
         this.config.ollama.maxContextTokens,
         this.config.ollama.disableThinking === true,
+        this.config.ollama.apiKey,
       );
     }
     

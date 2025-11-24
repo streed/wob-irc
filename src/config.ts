@@ -44,6 +44,7 @@ export function loadConfig(): BotConfig {
     },
     ollama: {
       host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+      apiKey: process.env.OLLAMA_API_KEY, // For cloud models
       model: process.env.OLLAMA_MODEL || 'llama3.2',
       maxToolCallRounds: process.env.MAX_TOOL_CALL_ROUNDS 
         ? parseInt(process.env.MAX_TOOL_CALL_ROUNDS) 
