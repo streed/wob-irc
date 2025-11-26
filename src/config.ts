@@ -12,7 +12,20 @@ export function loadConfig(): BotConfig {
   if (fs.existsSync(configPath)) {
     console.log('Loading configuration from config.json');
     const configData = fs.readFileSync(configPath, 'utf-8');
-    return JSON.parse(configData);
+    const cfg = JSON.parse(configData) as BotConfig;
+
+    // Allow environment variables to override provider and Groq settings
+    if (process.env.LLM_PROVIDER) {
+      (cfg as any).llmProvider = process.env.LLM_PROVIDER as any;
+    }
+    // Ensure groq section exists if any GROQ_* env is provided
+    if (process.env.GROQ_API_KEY || process.env.GROQ_MODEL || process.env.GROQ_BASE_URL) {
+      (cfg as any).groq = (cfg as any).groq || {};
+      if (process.env.GROQ_API_KEY) (cfg as any).groq.apiKey = process.env.GROQ_API_KEY;
+      if (process.env.GROQ_MODEL) (cfg as any).groq.model = process.env.GROQ_MODEL;
+      if (process.env.GROQ_BASE_URL) (cfg as any).groq.baseUrl = process.env.GROQ_BASE_URL;
+    }
+    return cfg;
   }
 
   // Fall back to environment variables
@@ -21,6 +34,7 @@ export function loadConfig(): BotConfig {
   const provider = (process.env.LLM_PROVIDER || 'ollama') as 'ollama' | 'runpod';
   
   const config: BotConfig = {
+    llmProvider: (process.env.LLM_PROVIDER as any) || 'ollama',
     irc: {
       host: process.env.IRC_HOST || 'irc.libera.chat',
       port: parseInt(process.env.IRC_PORT || '6667'),
@@ -30,20 +44,23 @@ export function loadConfig(): BotConfig {
       channels: (process.env.IRC_CHANNELS || '#test').split(',').map(c => c.trim()),
       tls: process.env.IRC_TLS === 'true',
     },
-    llm: {
-      provider,
-      ollama: provider === 'ollama' ? {
-        host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-        model: process.env.OLLAMA_MODEL || 'llama3.2',
-        embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text:v1.5',
-      } : undefined,
-      runpod: provider === 'runpod' ? {
-        apiKey: process.env.RUNPOD_API_KEY || '',
-        endpointId: process.env.RUNPOD_ENDPOINT_ID || '',
-      } : undefined,
+    ollama: {
+      host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+      apiKey: process.env.OLLAMA_API_KEY, // For cloud models
+      model: process.env.OLLAMA_MODEL || 'llama3.2',
       maxToolCallRounds: process.env.MAX_TOOL_CALL_ROUNDS 
         ? parseInt(process.env.MAX_TOOL_CALL_ROUNDS) 
         : undefined,
+      embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || 'nomic-embed-text:v1.5',
+      maxContextTokens: process.env.MAX_CONTEXT_TOKENS
+        ? parseInt(process.env.MAX_CONTEXT_TOKENS)
+        : 4096,
+      disableThinking: process.env.DISABLE_THINKING === 'true',
+    },
+    groq: {
+      apiKey: process.env.GROQ_API_KEY,
+      baseUrl: process.env.GROQ_BASE_URL,
+      model: process.env.GROQ_MODEL,
     },
     messageDebounceMs: parseInt(process.env.MESSAGE_DEBOUNCE_MS || '2000'),
     systemPrompt: process.env.SYSTEM_PROMPT,

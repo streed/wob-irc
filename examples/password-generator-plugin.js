@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const plugin = {
   name: 'password-generator',
-  description: 'Generate secure random passwords with customizable length and character sets. Useful for creating strong passwords for accounts and services.',
+  description: 'Generate secure random passwords. Use when asked for a password; support length and character set flags; enforce sensible limits.',
   tools: [
     {
       name: 'generate_password',
@@ -15,23 +15,23 @@ const plugin = {
         properties: {
           length: {
             type: 'number',
-            description: 'Password length (default: 16, min: 8, max: 128)',
+            description: 'Password length in characters. Default 16; allowed range 8–128.',
           },
           include_uppercase: {
             type: 'boolean',
-            description: 'Include uppercase letters A-Z (default: true)',
+            description: 'Include uppercase letters A–Z. Default true.',
           },
           include_lowercase: {
             type: 'boolean',
-            description: 'Include lowercase letters a-z (default: true)',
+            description: 'Include lowercase letters a–z. Default true.',
           },
           include_numbers: {
             type: 'boolean',
-            description: 'Include numbers 0-9 (default: true)',
+            description: 'Include digits 0–9. Default true.',
           },
           include_symbols: {
             type: 'boolean',
-            description: 'Include symbols !@#$%^&*()_+-=[]{}|;:,.<>? (default: true)',
+            description: 'Include symbols !@#$%^&*()_+-=[]{}|;:,.<>?. Default true.',
           },
         },
         required: [],

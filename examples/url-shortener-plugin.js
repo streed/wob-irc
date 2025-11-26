@@ -3,17 +3,17 @@
 
 const plugin = {
   name: 'url-shortener',
-  description: 'Shorten long URLs using TinyURL service. Useful for sharing links in IRC without taking up too much space.',
+  description: 'Shorten long URLs using TinyURL. Use for sharing long links; require http(s) URLs; return the shortened URL only.',
   tools: [
     {
       name: 'shorten_url',
-      description: 'Shorten a long URL using TinyURL service. Returns a shorter URL that redirects to the original.',
+      description: 'Shorten a long URL using TinyURL. Use when asked to shorten a link; require http(s) URL; return only the shortened URL.',
       parameters: {
         type: 'object',
         properties: {
           url: {
             type: 'string',
-            description: 'The long URL to shorten (must start with http:// or https://)',
+            description: 'Long URL to shorten. Must start with http:// or https:// and be a valid absolute URL.',
           },
         },
         required: ['url'],

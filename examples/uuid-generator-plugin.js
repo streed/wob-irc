@@ -5,7 +5,7 @@ const crypto = require('crypto');
 
 const plugin = {
   name: 'uuid-generator',
-  description: 'Generate UUIDs (Universally Unique Identifiers) in various versions. Useful for generating unique identifiers for databases, APIs, and distributed systems.',
+  description: 'Generate UUID v4 identifiers. Use when asked for a random unique ID/UUID; output a single UUID by default (support count up to 10).',
   tools: [
     {
       name: 'generate_uuid',
@@ -15,12 +15,12 @@ const plugin = {
         properties: {
           version: {
             type: 'string',
-            description: 'UUID version to generate (currently only v4 is supported)',
+            description: 'UUID version to generate. Only v4 is supported.',
             enum: ['v4'],
           },
           count: {
             type: 'number',
-            description: 'Number of UUIDs to generate (default: 1, max: 10)',
+            description: 'Number of UUIDs to generate. Default 1; allowed range 1–10.',
           },
         },
         required: [],

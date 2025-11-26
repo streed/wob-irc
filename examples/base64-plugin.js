@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'base64',
-  description: 'Encode and decode text using base64 encoding. Useful for encoding/decoding data in IRC.',
+  description: 'Encode/decode text with base64. Use when asked to convert text to/from base64; validate input and keep outputs short.',
   tools: [
     {
       name: 'base64_encode',
@@ -13,7 +13,7 @@ const plugin = {
         properties: {
           text: {
             type: 'string',
-            description: 'The text to encode',
+            description: 'Raw text to encode (UTF-8). Do not pre-encode; pass plain text.',
           },
         },
         required: ['text'],
@@ -27,7 +27,7 @@ const plugin = {
         properties: {
           encoded: {
             type: 'string',
-            description: 'The base64 encoded text to decode',
+            description: 'Base64 string to decode (standard base64; no whitespace; padding allowed).',
           },
         },
         required: ['encoded'],

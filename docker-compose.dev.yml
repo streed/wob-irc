@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  wob-irc:
+    # Build locally for development
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wob-irc-bot
+    restart: unless-stopped
+    environment:
+      # IRC Configuration - MODIFY THESE VALUES
+      IRC_HOST: irc.libera.chat
+      IRC_PORT: 6667
+      IRC_NICK: ollama-bot-dev
+      IRC_USERNAME: ollama
+      IRC_REALNAME: Ollama IRC Bot (Dev)
+      IRC_CHANNELS: "#test"
+      IRC_TLS: "false"
+      IRC_DEBUG: "true"
+      
+      # Ollama Configuration
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_API_KEY: ""  # Leave empty for local Ollama
+      OLLAMA_MODEL: llama3.2
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
+      MAX_CONTEXT_TOKENS: 4096
+      MAX_TOOL_CALL_ROUNDS: 10
+      DISABLE_THINKING: "false"
+      
+      # Bot Configuration
+      MESSAGE_DEBOUNCE_MS: 2000
+      SYSTEM_PROMPT: "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat."
+      
+      # Database Configuration
+      MESSAGE_HISTORY_DB_PATH: /app/data/message-history.db
+      
+      # Chaos Mode Configuration
+      CHAOS_MODE_ENABLED: "false"
+      CHAOS_MODE_PROBABILITY: 0.1
+    volumes:
+      # Persistent database storage
+      - wob-data:/app/data
+      # Mount config file if needed
+      - ./config.json:/app/config.json:ro
+      # Mount source for development hot reload (optional)
+      # - ./src:/app/src:ro
+      # - ./dist:/app/dist
+    networks:
+      - irc-bot-network
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    restart: unless-stopped
+    environment:
+      # Models to auto-pull on startup - MODIFY THESE IF NEEDED
+      OLLAMA_MODEL: llama3.2
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
+    volumes:
+      # Persistent Ollama model storage
+      - ollama-data:/root/.ollama
+      # Mount the entrypoint script
+      - ./ollama-entrypoint.sh:/entrypoint.sh:ro
+    ports:
+      - "11434:11434"
+    networks:
+      - irc-bot-network
+    entrypoint: ["/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    # Uncomment the following lines if you want to use GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  irc-bot-network:
+    driver: bridge
+
+volumes:
+  wob-data:
+    driver: local
+  ollama-data:
+    driver: local

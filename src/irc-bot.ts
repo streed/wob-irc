@@ -2,20 +2,23 @@ import * as irc from 'irc-framework';
 import { BotConfig, QueuedMessage } from './types';
 import { PluginLoader } from './plugin-loader';
 import { MessageQueue } from './message-queue';
-import { LLMClient } from './llm-client';
-import { OllamaClient } from './ollama-client';
-import { RunpodClient } from './runpod-client';
+import { BaseLLMClient } from './llm/base-llm';
+import { OllamaLLM } from './llm/ollama-llm';
+import { GroqLLM } from './llm/groq-llm';
 import { MessageHistoryDB } from './message-history-db';
 import { createMessageHistoryPlugin } from './builtin-plugins/message-history-plugin';
+import { Scheduler } from './scheduler';
+import { createSchedulerPlugin } from './builtin-plugins/scheduler-plugin';
 
 export class IRCBot {
   private client: irc.Client;
   private config: BotConfig;
   private pluginLoader: PluginLoader;
   private messageQueue: MessageQueue;
-  private llmClient: LLMClient;
+  private llmClient: BaseLLMClient;
   private messageHistory: MessageHistoryDB;
   private joinedChannels: Set<string> = new Set();
+  private scheduler: Scheduler;
 
   constructor(config: BotConfig) {
     this.config = config;
@@ -35,81 +38,141 @@ export class IRCBot {
     
     console.log('Using database-backed message history with 30-day retention and daily summaries');
     this.messageHistory = new MessageHistoryDB(
-      ollamaHost,
-      embeddingModel,
-      this.config.messageHistory?.dbPath
+      this.config.ollama.host,
+      this.config.ollama.embeddingModel || 'nomic-embed-text:v1.5',
+      this.config.messageHistory?.dbPath,
+      this.config.ollama.apiKey
     );
     
-    // Initialize LLM client based on provider
-    if (config.llm.provider === 'ollama') {
-      if (!config.llm.ollama) {
-        throw new Error('Ollama configuration is required when provider is ollama');
+    // Initialize LLM client (Ollama or Groq)
+    const provider = this.config.llmProvider || 'ollama';
+    if (provider === 'groq') {
+      const apiKey = this.config.groq?.apiKey || process.env.GROQ_API_KEY || '';
+      if (!apiKey) {
+        console.warn('[Config] GROQ_API_KEY not set; falling back to Ollama provider');
+        this.llmClient = new OllamaLLM(
+          this.config.ollama.host,
+          this.config.ollama.model,
+          this.config.systemPrompt || this.getDefaultSystemPrompt(),
+          this.config.ollama.maxToolCallRounds,
+          this.config.chaosMode,
+          this.messageHistory,
+          this.config.ollama.maxContextTokens,
+          this.config.ollama.disableThinking === true,
+          this.config.ollama.apiKey,
+        );
+      } else {
+        this.llmClient = new GroqLLM(
+          apiKey,
+          this.config.groq?.model || process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
+          this.config.systemPrompt || this.getDefaultSystemPrompt(),
+          {
+            baseUrl: this.config.groq?.baseUrl || process.env.GROQ_BASE_URL,
+            maxToolCallRounds: this.config.ollama.maxToolCallRounds,
+            chaosMode: this.config.chaosMode,
+            messageHistory: this.messageHistory,
+            maxContextTokens: this.config.ollama.maxContextTokens,
+            disableThinking: this.config.ollama.disableThinking === true,
+          },
+        );
       }
-      this.llmClient = new OllamaClient(
-        config.llm.ollama.host,
-        config.llm.ollama.model,
-        this.config.systemPrompt || this.getDefaultSystemPrompt(),
-        this.config.llm.maxToolCallRounds,
-        this.config.chaosMode,
-        this.messageHistory
-      );
-    } else if (config.llm.provider === 'runpod') {
-      if (!config.llm.runpod) {
-        throw new Error('Runpod configuration is required when provider is runpod');
-      }
-      this.llmClient = new RunpodClient(
-        config.llm.runpod,
-        this.config.systemPrompt || this.getDefaultSystemPrompt(),
-        this.config.llm.maxToolCallRounds,
-        this.config.chaosMode,
-        this.messageHistory
-      );
     } else {
-      throw new Error(`Unknown LLM provider: ${config.llm.provider}`);
+      this.llmClient = new OllamaLLM(
+        this.config.ollama.host,
+        this.config.ollama.model,
+        this.config.systemPrompt || this.getDefaultSystemPrompt(),
+        this.config.ollama.maxToolCallRounds,
+        this.config.chaosMode,
+        this.messageHistory,
+        this.config.ollama.maxContextTokens,
+        this.config.ollama.disableThinking === true,
+        this.config.ollama.apiKey,
+      );
     }
     
-    // Initialize plugin loader and set LLMClient for optimization
+    // Initialize plugin loader
     this.pluginLoader = new PluginLoader();
-    this.pluginLoader.setOllamaClient(this.llmClient);
+    // Provide messenger so plugins can stream updates to IRC in real time
+    this.pluginLoader.setMessenger(async (channel: string, message: string) => {
+      await this.sendIrcMessage(channel, message);
+    });
     
-    // Now set the plugin loader in LLMClient for tool execution
+    // Set the plugin loader in the LLM client for tool execution
     this.llmClient.setPluginLoader(this.pluginLoader);
-    
+
     // Initialize message queue
     this.messageQueue = new MessageQueue(
       this.config.messageDebounceMs,
       this.processQueuedMessages.bind(this)
     );
+
+    // Initialize persistent scheduler (DB alongside message-history.db)
+    this.scheduler = new Scheduler(
+      this.config.messageHistory?.dbPath ? this.config.messageHistory.dbPath.replace(/\.db$/, '-jobs.db') : 'scheduled-jobs.db',
+      {
+        executeTool: async (toolName, parameters, runtime) => {
+          return await this.pluginLoader.executeToolCall(toolName, parameters, { channel: runtime.channel, actorNick: runtime.actorNick });
+        },
+        sendMessage: async (channel, message) => {
+          await this.sendIrcMessage(channel, message);
+        },
+        submitPrompt: async (channel, actorNick, text) => {
+          // Feed into normal message handling pipeline as if actor posted it
+          this.messageQueue.addMessage(channel, actorNick || 'scheduler', text);
+        },
+        tickIntervalMs: 30_000,
+      }
+    );
   }
 
   private getDefaultSystemPrompt(): string {
-    return `You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. 
-Keep your responses brief and appropriate for IRC chat.
+    return `You are an IRC assistant. Be concise, correct, and tool-smart.
 
-IMPORTANT: Do not use markdown formatting. Use plain text only - no asterisks, underscores, backticks, or other markdown syntax.
+Output:
+- Plain text only (no markdown, code fences, or special formatting)
+- Final answer only — never include chain-of-thought, steps, or meta; no <think> tags
+- Prefer one short line (≤400 chars). If that cannot convey a complete answer, you may send up to 3 lines (each ≤400 chars), prioritizing the highest-signal facts
+- If key info is missing, ask one crisp clarifying question (single line)
 
-TOOLS AVAILABLE TO YOU:
-You have access to powerful tools that can help you answer questions more effectively. ALWAYS consider using these tools when they would be helpful:
+Tool policy:
+- Use tools when they improve reliability (math, conversions, definitions, channel history); otherwise answer directly
+- Choose the minimal tool(s) needed; avoid redundant calls; do not loop on the same tool
+- Fill required parameters; use sensible defaults (e.g., limit≈20) and cap large outputs
+- After a tool response, synthesize a brief answer; do not paste long raw results
+- If a question is about recent chat context, first try message-history tools
+- If asked to simulate a fight/battle and a 'battle' tool is available, call it (e.g., start_battle) and let the tool stream updates
 
-1. MESSAGE HISTORY TOOLS - Use these frequently to provide context-aware responses:
-   - get_recent_messages: See what was just discussed in the channel
-   - get_user_messages: Find what a specific person said
-   - search_messages: Search for specific words or phrases in history (keyword search)
-   - semantic_search_messages: Find messages by meaning/concept (great for "what did we discuss about X?")
-   - get_channel_stats: Show channel activity statistics
-   - get_user_stats: Show how active a specific user has been
-   - get_daily_summaries: Review past days' activity summaries
+RPG policy:
+- When user intent is RPG-like (create hero, travel, explore, fight, shop, inventory, memory), prefer calling 'battle' plugin tools:
+  - create_character / get_character / list_characters
+  - travel_to / get_location
+  - explore_dungeon (use current location when relevant)
+  - battle (<=3 rounds always; allow tool to stream with pacing; do NOT narrate long summaries yourself)
+  - inspect_inventory / shop_buy / use_item / equip_item / unequip_item / get_equipment
+  - quest_board / accept_quest_template / start_quest / update_quest / complete_quest / list_quests / list_achievements
+  - append_memory / get_memory for in-character flavor
+- Keep narration concise and allow the tool to stream a few lines; avoid extra commentary.
 
-2. OTHER TOOLS - Additional tools may be available depending on loaded plugins
+Message history tools (how to choose):
+- get_recent_messages: Last N lines; use for “what were we discussing?”
+- get_user_messages: Lines from one user
+- search_messages: Exact keywords/phrases
+- semantic_search_messages: Conceptual/meaning similarity when keywords fail
+- get_channel_stats / get_user_stats: Activity summaries
+- get_daily_summaries: Historical day-level rollups
 
-When users ask about past conversations, what someone said, or topics discussed, IMMEDIATELY use the appropriate message history tool. The tools are fast and provide accurate information directly from the chat logs.`;
+Style:
+- Friendly, neutral tone; no filler or hedging
+- Do not fabricate URLs or facts; if uncertain, say so briefly
+- Keep answers crisp for IRC; no lists unless explicitly asked`;
   }
 
   async start(): Promise<void> {
-    // Register built-in plugins (with optimization)
+    // Register built-in plugins
     await this.pluginLoader.registerBuiltinPlugin(createMessageHistoryPlugin(this.messageHistory));
+    await this.pluginLoader.registerBuiltinPlugin(createSchedulerPlugin(this.scheduler));
     
-    // Load plugins (with optimization)
+    // Load plugins
     await this.pluginLoader.loadPlugins();
     
     // Setup event handlers first, before connecting
@@ -134,6 +197,8 @@ When users ask about past conversations, what someone said, or topics discussed,
     });
     
     console.log('Connection initiated, waiting for server response...');
+    // Start scheduler after boot; it runs irrespective of IRC connection
+    this.scheduler.start();
   }
 
   private setupEventHandlers(): void {
@@ -282,24 +347,89 @@ When users ask about past conversations, what someone said, or topics discussed,
     try {
       console.log(`Processing ${messages.length} message(s) for ${channel}`);
       
-      // Get response from LLM client
+      // Get response from LLM provider
       const response = await this.llmClient.processMessages(channel, messages);
       
       if (response && response.trim()) {
         // Remove markdown formatting for IRC
-        const cleanedResponse = this.removeMarkdown(response);
-        
-        // Split long messages if needed (IRC typically has ~512 char limit)
-        const lines = this.splitMessage(cleanedResponse, 400);
-        
-        for (const line of lines) {
-          this.client.say(channel, line);
+        let cleanedResponse = this.removeMarkdown(response).trim();
+        // Remove any explicit reasoning/thought preambles — send answer only
+        cleanedResponse = this.removeReasoningPreambles(cleanedResponse);
+
+        // If nothing remains after cleaning, don't send or record
+        if (!cleanedResponse || cleanedResponse.trim().length === 0) {
+          try { console.log(`[IRC] Skipping empty response after cleaning for ${channel}`); } catch (_) {}
+          return;
+        }
+
+        // Log the cleaned response that will be used for sending
+        try {
+          console.log(`[IRC] Cleaned LLM response for ${channel} (${cleanedResponse.length} chars): ${cleanedResponse}`);
+        } catch (_) {
+          // best-effort logging only
+        }
+
+        let finalSentText = '';
+        // If response fits within one IRC message, send single line; else allow up to 3 lines
+        if (cleanedResponse.length <= 400 && cleanedResponse.split('\n').length <= 1) {
+          try { console.log(`[IRC->${channel}] ${cleanedResponse}`); } catch (_) {}
+          this.client.say(channel, cleanedResponse);
+          finalSentText = cleanedResponse;
+          // Record assistant message into channel history DB (best-effort)
+          try {
+            const p = this.messageHistory.addMessage(channel, this.client.user.nick, cleanedResponse);
+            if (p instanceof Promise) { p.catch((e: any) => console.error('Error recording assistant message:', e)); }
+          } catch (e) { /* ignore */ }
+        } else {
+          console.log(`[IRC] Summarizing for multi-line output (<=3 lines) for ${channel}`);
+          // Summarize to ~3 messages worth of characters
+          const summary = await this.llmClient.summarizeText(cleanedResponse, 1200);
+          const lines = this.splitMessage(summary, 400).slice(0, 3);
+          try { console.log(`[IRC] Sending ${lines.length} line(s) to ${channel} (multi-line mode)`); } catch (_) {}
+          for (const line of lines) {
+            const out = line.trim();
+            if (!out) continue;
+            try { console.log(`[IRC->${channel}] ${out}`); } catch (_) {}
+            this.client.say(channel, out);
+            // Record each line into channel history DB (best-effort)
+            try {
+              const p = this.messageHistory.addMessage(channel, this.client.user.nick, out);
+              if (p instanceof Promise) { p.catch((e: any) => console.error('Error recording assistant message:', e)); }
+            } catch (e) { /* ignore */ }
+          }
+          finalSentText = lines.join('\n');
+        }
+
+        // Record only what we actually sent to IRC into the LLM's history,
+        // excluding any hidden reasoning or markdown that wasn't sent.
+        if (finalSentText) {
+          await this.llmClient.recordAssistantOutput(channel, finalSentText);
         }
       }
     } catch (error) {
       console.error('Error processing messages:', error);
       this.client.say(channel, 'Sorry, I encountered an error processing that request.');
     }
+  }
+
+  // Remove obvious reasoning/chain-of-thought preambles and meta statements
+  private removeReasoningPreambles(text: string): string {
+    if (!text) return '';
+    // Strip common prefaces indicating reasoning
+    const patterns = [
+      /^(?:thoughts?|thinking|reasoning|analysis|plan|approach|steps?|explanation)\s*[:\-]/gim,
+      /^(?:let'?s\s+think|let me think|i will|here'?s how|i (?:am|was) going to)\b[\s\S]*?\n/gim,
+      /^step\s*\d+[:\.\-]/gim,
+    ];
+    let result = text;
+    for (const re of patterns) {
+      result = result.replace(re, '');
+    }
+    // Remove standalone labels like "Final answer:" and similar
+    result = result.replace(/^\s*(final\s+answer|answer)\s*[:\-]\s*/gim, '');
+    // Collapse excessive blank lines
+    result = result.replace(/\n{3,}/g, '\n\n');
+    return result.trim();
   }
 
   private removeMarkdown(text: string): string {
@@ -374,6 +504,26 @@ When users ask about past conversations, what someone said, or topics discussed,
     return lines;
   }
 
+  // Send a message to IRC and record to history; used by plugins for streaming
+  private async sendIrcMessage(channel: string, text: string): Promise<void> {
+    if (!text) return;
+    const cleaned = this.removeMarkdown(this.removeReasoningPreambles(String(text))).trim();
+    if (!cleaned) return;
+    const lines = this.splitMessage(cleaned, 400).slice(0, 5); // reasonable cap for plugin bursts
+    for (const line of lines) {
+      const out = line.trim();
+      if (!out) continue;
+      try { console.log(`[PLUGIN->${channel}] ${out}`); } catch (_) {}
+      this.client.say(channel, out);
+      try {
+        const p = this.messageHistory.addMessage(channel, this.client.user.nick, out);
+        if (p instanceof Promise) { await p.catch((e: any) => console.error('Error recording plugin message:', e)); }
+      } catch (_) {}
+      // small pacing to avoid spam; not strictly required
+      await new Promise(r => setTimeout(r, 10));
+    }
+  }
+
   async shutdown(): Promise<void> {
     console.log('[IRC] Shutting down bot...');
     
@@ -384,6 +534,10 @@ When users ask about past conversations, what someone said, or topics discussed,
     // Close database
     console.log('[IRC] Closing message history database...');
     this.messageHistory.close();
+
+    // Stop scheduler
+    console.log('[IRC] Stopping scheduler...');
+    this.scheduler.close();
     
     // Quit IRC
     console.log('[IRC] Sending QUIT command...');

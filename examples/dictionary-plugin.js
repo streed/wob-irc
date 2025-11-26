@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'dictionary',
-  description: 'Look up word definitions, pronunciations, and examples using a free dictionary API. Useful for learning word meanings and usage.',
+  description: 'Fetch English word definitions, pronunciation, and examples. Use when asked to define/explain a word; handle not-found cases clearly.',
   tools: [
     {
       name: 'define_word',
@@ -13,7 +13,7 @@ const plugin = {
         properties: {
           word: {
             type: 'string',
-            description: 'The word to look up (English)',
+            description: "English word to define. Letters, hyphens, apostrophes only (e.g., don't, mother-in-law).",
           },
         },
         required: ['word'],

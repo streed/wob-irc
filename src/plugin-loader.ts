@@ -1,66 +1,22 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { Plugin } from './types';
-import { sanitizeUnicode } from './unicode-sanitizer';
-import type { LLMClient } from './llm-client';
+import * as fs from "fs";
+import * as path from "path";
+import { Plugin, PluginExecutionContext } from "./types";
+import { sanitizeUnicode } from "./unicode-sanitizer";
 
 export class PluginLoader {
   private plugins: Map<string, Plugin> = new Map();
   private pluginsDir: string;
-  private llmClient?: LLMClient;
+  private messenger?: (channel: string, message: string) => Promise<void>;
 
-  constructor(pluginsDir: string = './plugins') {
+  constructor(pluginsDir: string = "./plugins") {
     this.pluginsDir = path.resolve(pluginsDir);
   }
 
   /**
-   * Set the LLMClient to use for optimizing plugin descriptions
+   * Provide a messenger that plugins can use to send IRC messages.
    */
-  setOllamaClient(llmClient: LLMClient): void {
-    this.llmClient = llmClient;
-  }
-
-  /**
-   * Optimize plugin descriptions using the LLM
-   */
-  private async optimizePluginDescriptions(plugin: Plugin): Promise<void> {
-    if (!this.llmClient) {
-      console.log(`  Skipping optimization for ${plugin.name} (no LLMClient set)`);
-      return;
-    }
-
-    console.log(`  Optimizing descriptions for plugin: ${plugin.name}`);
-
-    try {
-      // Optimize plugin description
-      plugin.optimizedDescription = await this.llmClient.optimizeDescription(
-        plugin.description,
-        `This is a plugin named "${plugin.name}" with ${plugin.tools.length} tool(s)`
-      );
-
-      // Optimize each tool's description and parameter descriptions
-      for (const tool of plugin.tools) {
-        // Optimize tool description
-        tool.optimizedDescription = await this.llmClient.optimizeDescription(
-          tool.description,
-          `This is a tool named "${tool.name}" in the "${plugin.name}" plugin`
-        );
-
-        // Optimize parameter descriptions
-        if (tool.parameters.properties) {
-          for (const [paramName, paramSpec] of Object.entries(tool.parameters.properties)) {
-            paramSpec.optimizedDescription = await this.llmClient.optimizeDescription(
-              paramSpec.description,
-              `This is parameter "${paramName}" for tool "${tool.name}" in plugin "${plugin.name}". Parameter type: ${paramSpec.type}`
-            );
-          }
-        }
-      }
-
-      console.log(`  ✓ Optimized descriptions for ${plugin.name}`);
-    } catch (error) {
-      console.error(`  ✗ Error optimizing descriptions for ${plugin.name}:`, error);
-    }
+  setMessenger(fn: (channel: string, message: string) => Promise<void>): void {
+    this.messenger = fn;
   }
 
   /**
@@ -69,10 +25,9 @@ export class PluginLoader {
   async registerBuiltinPlugin(plugin: Plugin): Promise<void> {
     if (this.isValidPlugin(plugin)) {
       this.plugins.set(plugin.name, plugin);
-      console.log(`✓ Registered built-in plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`);
-      
-      // Optimize descriptions if OllamaClient is available
-      await this.optimizePluginDescriptions(plugin);
+      console.log(
+        `✓ Registered built-in plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`,
+      );
     } else {
       console.warn(`✗ Invalid built-in plugin format`);
     }
@@ -80,31 +35,30 @@ export class PluginLoader {
 
   async loadPlugins(): Promise<void> {
     console.log(`Loading plugins from: ${this.pluginsDir}`);
-    
+
     if (!fs.existsSync(this.pluginsDir)) {
-      console.log('Plugins directory does not exist, creating it...');
+      console.log("Plugins directory does not exist, creating it...");
       fs.mkdirSync(this.pluginsDir, { recursive: true });
       return;
     }
 
     const files = fs.readdirSync(this.pluginsDir);
-    
+
     for (const file of files) {
-      if (file.endsWith('.js') || file.endsWith('.ts')) {
+      if (file.endsWith(".js") || file.endsWith(".ts")) {
         try {
           const pluginPath = path.join(this.pluginsDir, file);
           console.log(`Loading plugin: ${file}`);
-          
+
           // Dynamic import for ESM/CJS compatibility
           const module = require(pluginPath);
           const plugin: Plugin = module.default || module;
-          
+
           if (this.isValidPlugin(plugin)) {
             this.plugins.set(plugin.name, plugin);
-            console.log(`✓ Loaded plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`);
-            
-            // Optimize descriptions
-            await this.optimizePluginDescriptions(plugin);
+            console.log(
+              `✓ Loaded plugin: ${plugin.name} with ${plugin.tools.length} tool(s)`,
+            );
           } else {
             console.warn(`✗ Invalid plugin format in ${file}`);
           }
@@ -113,17 +67,17 @@ export class PluginLoader {
         }
       }
     }
-    
+
     console.log(`Total plugins loaded: ${this.plugins.size}`);
   }
 
   private isValidPlugin(plugin: any): plugin is Plugin {
     return (
       plugin &&
-      typeof plugin.name === 'string' &&
-      typeof plugin.description === 'string' &&
+      typeof plugin.name === "string" &&
+      typeof plugin.description === "string" &&
       Array.isArray(plugin.tools) &&
-      typeof plugin.execute === 'function'
+      typeof plugin.execute === "function"
     );
   }
 
@@ -131,12 +85,29 @@ export class PluginLoader {
     return Array.from(this.plugins.values());
   }
 
-  async executeToolCall(toolName: string, parameters: Record<string, any>): Promise<string> {
+  async executeToolCall(
+    toolName: string,
+    parameters: Record<string, any>,
+    runtimeCtx?: { channel?: string; actorNick?: string }
+  ): Promise<string> {
+    console.log(
+      `Executing tool: ${toolName} with parameters: ${JSON.stringify(parameters)}`,
+    );
     for (const plugin of this.plugins.values()) {
-      const tool = plugin.tools.find(t => t.name === toolName);
+      const tool = plugin.tools.find((t) => t.name === toolName);
       if (tool) {
         console.log(`Executing tool: ${toolName} from plugin: ${plugin.name}`);
-        const result = await plugin.execute(toolName, parameters);
+        const ctx: PluginExecutionContext | undefined = this.messenger && runtimeCtx?.channel
+          ? {
+              channel: runtimeCtx.channel,
+              say: async (channel: string, message: string) => {
+                if (!this.messenger) return;
+                await this.messenger(channel, message);
+              },
+              actorNick: runtimeCtx?.actorNick,
+            }
+          : undefined;
+        const result = await plugin.execute(toolName, parameters, ctx);
         // Sanitize Unicode from tool results
         return sanitizeUnicode(result);
       }
@@ -146,39 +117,49 @@ export class PluginLoader {
 
   getToolsForOllama(): any[] {
     const tools: any[] = [];
-    
+
     for (const plugin of this.plugins.values()) {
       for (const tool of plugin.tools) {
-        // Use optimized description if available, otherwise use original
-        const toolDescription = tool.optimizedDescription || tool.description;
-        
-        // Build parameters with optimized descriptions
-        const parameters = {
-          type: tool.parameters.type,
-          properties: {} as Record<string, any>,
-          required: tool.parameters.required,
-        };
-        
-        // Copy properties with optimized descriptions
-        for (const [paramName, paramSpec] of Object.entries(tool.parameters.properties)) {
-          parameters.properties[paramName] = {
-            type: paramSpec.type,
-            description: paramSpec.optimizedDescription || paramSpec.description,
-            ...(paramSpec.enum && { enum: paramSpec.enum }),
-          };
+        // Validate tool has a name
+        if (!tool.name || typeof tool.name !== 'string' || tool.name.trim() === '') {
+          console.warn(`Skipping tool without valid name in plugin:`, tool);
+          continue;
         }
-        
+
+        // Use original descriptions directly
+        const toolDescription = tool.description || '';
+
+        // Build parameters with provided descriptions
+        const parameters = {
+          type: tool.parameters?.type || 'object',
+          properties: {} as Record<string, any>,
+          required: tool.parameters?.required || [],
+        };
+
+        // Copy parameter properties
+        if (tool.parameters?.properties) {
+          for (const [paramName, paramSpec] of Object.entries(
+            tool.parameters.properties,
+          )) {
+            parameters.properties[paramName] = {
+              type: paramSpec.type || 'string',
+              description: paramSpec.description || '',
+              ...(paramSpec.enum && { enum: paramSpec.enum }),
+            };
+          }
+        }
+
         tools.push({
-          type: 'function',
+          type: "function",
           function: {
-            name: tool.name,
+            name: tool.name.trim(),
             description: toolDescription,
             parameters: parameters,
           },
         });
       }
     }
-    
+
     return tools;
   }
 }

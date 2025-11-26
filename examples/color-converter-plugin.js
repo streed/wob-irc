@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'color-converter',
-  description: 'Convert between different color formats including HEX, RGB, and HSL. Useful for web development and design discussions in IRC.',
+  description: 'Convert colors between HEX, RGB, and HSL. Use when users want a color in another format; validate input formats and ranges.',
   tools: [
     {
       name: 'convert_color',
@@ -13,11 +13,11 @@ const plugin = {
         properties: {
           color: {
             type: 'string',
-            description: 'The color to convert (e.g., "#FF5733", "rgb(255,87,51)", "hsl(9,100%,60%)")',
+            description: 'Input color: HEX (#RRGGBB), RGB rgb(r,g,b) with 0-255, or HSL hsl(h, s%, l%) with 0-360/0-100/0-100.',
           },
           to_format: {
             type: 'string',
-            description: 'The target format to convert to',
+            description: 'Target format to convert to. Must be one of: hex, rgb, hsl.',
             enum: ['hex', 'rgb', 'hsl'],
           },
         },

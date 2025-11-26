@@ -4,7 +4,7 @@
 
 const plugin = {
   name: 'weather',
-  description: 'Returns current weather conditions and 3-day forecast. Provides temperature (°F), condition (sunny/cloudy/rainy), wind speed/direction, and precipitation. Works with city names, landmarks, airports, or coordinates.',
+  description: 'Get current weather and 3-day forecast. Use when asked about weather for a location; accepts city/landmark/airport/coordinates; return a concise summary.',
   tools: [
     {
       name: 'get_weather',
@@ -14,7 +14,7 @@ const plugin = {
         properties: {
           query: {
             type: 'string',
-            description: "Location query: city name ('London'), landmark ('~Eiffel Tower'), airport code ('LAX'), area code ('90210'), or lat,long coordinates ('34.05,-118.24'). No spaces in coordinates.",
+            description: "Location query. Accepts city ('London'), landmark ('~Eiffel Tower'), airport code ('LAX'), area code ('90210'), or 'lat,lon' coordinates without spaces (e.g., '34.05,-118.24').",
           },
         },
         required: ['query'],

@@ -3,7 +3,7 @@
 
 const plugin = {
   name: 'unit-converter',
-  description: 'Convert between common units of measurement including temperature (Celsius/Fahrenheit/Kelvin), length (meters/feet/miles/km), weight (kg/lbs/oz), and volume (liters/gallons).',
+  description: 'Convert units (temperature, length, weight, volume). Use when asked to convert units; validate supported units and ranges.',
   tools: [
     {
       name: 'convert_unit',
@@ -13,15 +13,15 @@ const plugin = {
         properties: {
           value: {
             type: 'number',
-            description: 'The numeric value to convert',
+            description: 'Numeric value to convert.',
           },
           from_unit: {
             type: 'string',
-            description: 'The source unit (e.g., celsius, fahrenheit, kelvin, meters, feet, miles, km, kg, lbs, oz, liters, gallons)',
+            description: 'Source unit. Supported: celsius, fahrenheit, kelvin, meters, feet, miles, km, kg, lbs, oz, liters, gallons.',
           },
           to_unit: {
             type: 'string',
-            description: 'The target unit to convert to',
+            description: 'Target unit to convert to. Must be a compatible unit within the same type as from_unit.',
           },
         },
         required: ['value', 'from_unit', 'to_unit'],

@@ -33,18 +33,35 @@ export class MessageHistoryDB {
   constructor(
     ollamaHost: string,
     embeddingModel: string = 'nomic-embed-text:v1.5',
-    dbPath?: string
+    dbPath?: string,
+    apiKey?: string
   ) {
     // Set database path
     this.dbPath = dbPath || path.join(process.cwd(), 'message-history.db');
     
+    console.log(`Attempting to use database at: ${this.dbPath}`);
+    
     // Ensure directory exists
     const dbDir = path.dirname(this.dbPath);
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
+    console.log(`Database directory: ${dbDir}`);
+    
+    try {
+      if (!fs.existsSync(dbDir)) {
+        console.log(`Creating database directory: ${dbDir}`);
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      console.log(`Directory exists/created. Checking permissions...`);
+      
+      // Check if directory is writable
+      fs.accessSync(dbDir, fs.constants.W_OK);
+      console.log(`Directory is writable`);
+    } catch (error) {
+      console.error(`Error with database directory: ${error}`);
+      throw error;
     }
 
     // Initialize SQLite database
+    console.log(`Opening database at: ${this.dbPath}`);
     this.db = new Database(this.dbPath);
     
     // Enable safe integers mode to ensure lastInsertRowid returns bigint
@@ -55,7 +72,13 @@ export class MessageHistoryDB {
     sqliteVec.load(this.db);
 
     // Initialize Ollama client for embeddings
-    this.ollama = new Ollama({ host: ollamaHost });
+    const config: any = { host: ollamaHost };
+    if (apiKey) {
+      config.headers = {
+        'Authorization': `Bearer ${apiKey}`
+      };
+    }
+    this.ollama = new Ollama(config);
     this.embeddingModel = embeddingModel;
 
     // Initialize database schema
