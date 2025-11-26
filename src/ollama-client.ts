@@ -1,9 +1,9 @@
 import { Ollama } from 'ollama';
 import { QueuedMessage } from './types';
-import { PluginLoader } from './plugin-loader';
 import { sanitizeUnicode } from './unicode-sanitizer';
+import { LLMClient } from './llm-client';
 
-export class OllamaClient {
+export class OllamaClient extends LLMClient {
   private ollama: Ollama;
   private model: string;
   private systemPrompt: string;
@@ -775,3 +775,4 @@ export class OllamaClient {
     return this.truncate(raw, budget) + ' [truncated]';
   }
 }
+

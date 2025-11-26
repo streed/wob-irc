@@ -31,6 +31,8 @@ export function loadConfig(): BotConfig {
   // Fall back to environment variables
   console.log('Loading configuration from environment variables');
   
+  const provider = (process.env.LLM_PROVIDER || 'ollama') as 'ollama' | 'runpod';
+  
   const config: BotConfig = {
     llmProvider: (process.env.LLM_PROVIDER as any) || 'ollama',
     irc: {

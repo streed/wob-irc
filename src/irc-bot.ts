@@ -27,6 +27,15 @@ export class IRCBot {
     this.client = new irc.Client();
     
     // Initialize message history with database (always)
+    // For Ollama, use the configured embedding model, for Runpod use a default
+    let ollamaHost = 'http://localhost:11434';
+    let embeddingModel = 'nomic-embed-text:v1.5';
+    
+    if (config.llm.provider === 'ollama' && config.llm.ollama) {
+      ollamaHost = config.llm.ollama.host;
+      embeddingModel = config.llm.ollama.embeddingModel || 'nomic-embed-text:v1.5';
+    }
+    
     console.log('Using database-backed message history with 30-day retention and daily summaries');
     this.messageHistory = new MessageHistoryDB(
       this.config.ollama.host,

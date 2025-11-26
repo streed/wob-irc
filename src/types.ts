@@ -46,9 +46,19 @@ export interface BotConfig {
     channels: string[];
     tls?: boolean;
   };
-  ollama: {
-    host: string;
-    model: string;
+  llm: {
+    provider: 'ollama' | 'runpod';
+    // Ollama configuration
+    ollama?: {
+      host: string;
+      model: string;
+      embeddingModel?: string;
+    };
+    // Runpod configuration
+    runpod?: {
+      apiKey: string;
+      endpointId: string;
+    };
     maxToolCallRounds?: number;
     embeddingModel?: string;
     maxContextTokens?: number; // Cap for chat context tokens

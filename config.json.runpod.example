@@ -1,0 +1,28 @@
+{
+  "irc": {
+    "host": "irc.libera.chat",
+    "port": 6667,
+    "nick": "ollama-bot",
+    "username": "ollama",
+    "realname": "Ollama IRC Bot",
+    "channels": ["#test"],
+    "tls": false
+  },
+  "llm": {
+    "provider": "runpod",
+    "runpod": {
+      "apiKey": "YOUR_RUNPOD_API_KEY",
+      "endpointId": "YOUR_RUNPOD_ENDPOINT_ID"
+    },
+    "maxToolCallRounds": 10
+  },
+  "messageDebounceMs": 2000,
+  "systemPrompt": "You are a helpful IRC bot assistant. You respond to messages in a concise and friendly manner. Keep your responses brief and appropriate for IRC chat.",
+  "messageHistory": {
+    "dbPath": "message-history.db"
+  },
+  "chaosMode": {
+    "enabled": false,
+    "probability": 0.1
+  }
+}

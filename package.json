@@ -1,7 +1,7 @@
 {
   "name": "wob-irc",
   "version": "1.0.0",
-  "description": "An IRC bot with Ollama AI integration and plugin support",
+  "description": "An IRC bot with LLM AI integration (Ollama or Runpod) and plugin support",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
