@@ -2,21 +2,22 @@ version: '3.8'
 
 services:
   wob-irc:
-    # Use the published image from GitHub Container Registry
-    # Replace 'streed' with your GitHub username if different
-    image: ghcr.io/streed/wob-irc:latest
+    # Build locally for development
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: wob-irc-bot
     restart: unless-stopped
     environment:
       # IRC Configuration - MODIFY THESE VALUES
       IRC_HOST: irc.libera.chat
       IRC_PORT: 6667
-      IRC_NICK: ollama-bot
+      IRC_NICK: ollama-bot-dev
       IRC_USERNAME: ollama
-      IRC_REALNAME: Ollama IRC Bot
+      IRC_REALNAME: Ollama IRC Bot (Dev)
       IRC_CHANNELS: "#test"
       IRC_TLS: "false"
-      IRC_DEBUG: "false"
+      IRC_DEBUG: "true"
       
       # Ollama Configuration
       OLLAMA_HOST: http://ollama:11434
@@ -42,6 +43,9 @@ services:
       - wob-data:/app/data
       # Mount config file if needed
       - ./config.json:/app/config.json:ro
+      # Mount source for development hot reload (optional)
+      # - ./src:/app/src:ro
+      # - ./dist:/app/dist
     networks:
       - irc-bot-network
     depends_on:
